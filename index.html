@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#1a6b3c" />
+  <meta name="description" content="AI-powered medicinal plant identification using image recognition." />
+  <title>HerbSense – Medicinal Plant Identifier</title>
+
+  <!-- Phosphor Icons (free, beautiful, tree-shakeable) -->
+  <script src="https://unpkg.com/@phosphor-icons/web@2.1.1/src/index.js" defer></script>
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ===== HEADER ===== -->
+  <header class="header">
+    <div class="header__inner container">
+      <div class="logo">
+        <span class="logo__icon"><i class="ph-fill ph-leaf"></i></span>
+        <span class="logo__text">HerbSense</span>
+      </div>
+      <nav class="header__nav">
+        <a href="#detect" class="nav-link active">Detect</a>
+        <a href="#how-it-works" class="nav-link">How It Works</a>
+        <a href="#about" class="nav-link">About</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ===== HERO ===== -->
+  <section class="hero" id="detect">
+    <div class="container hero__inner">
+      <div class="hero__text">
+        <span class="badge"><i class="ph ph-sparkle"></i> AI-Powered Detection</span>
+        <h1 class="hero__title">Identify Medicinal<br /><span class="accent">Plants Instantly</span></h1>
+        <p class="hero__subtitle">
+          Upload a photo or capture one live — our AI model identifies medicinal plants with high accuracy and shows you their properties.
+        </p>
+      </div>
+      <div class="hero__visual" aria-hidden="true">
+        <div class="leaf-bg">
+          <i class="ph-fill ph-leaf leaf-1"></i>
+          <i class="ph-fill ph-leaf leaf-2"></i>
+          <i class="ph-fill ph-leaf leaf-3"></i>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== MAIN DETECTION CARD ===== -->
+  <main class="main container" id="main-content">
+
+    <!-- API Key setup banner -->
+    <div class="api-banner" id="apiBanner">
+      <div class="api-banner__icon"><i class="ph ph-key"></i></div>
+      <div class="api-banner__text">
+        <strong>Configure your Roboflow API</strong>
+        <p>Enter your Roboflow API key and model details to enable live detection.</p>
+      </div>
+      <button class="btn btn--outline btn--sm" id="openConfigBtn">
+        <i class="ph ph-gear-six"></i> Configure
+      </button>
+    </div>
+
+    <!-- Detection card -->
+    <div class="detect-card card" id="detectCard">
+
+      <!-- Upload zone -->
+      <div class="upload-zone" id="uploadZone" role="button" tabindex="0" aria-label="Upload or drag and drop a plant image">
+        <div class="upload-zone__idle" id="uploadIdle">
+          <div class="upload-zone__icon">
+            <i class="ph ph-image-square"></i>
+          </div>
+          <p class="upload-zone__title">Drop your plant image here</p>
+          <p class="upload-zone__sub">or choose an option below</p>
+        </div>
+
+        <!-- Preview -->
+        <div class="upload-zone__preview hidden" id="uploadPreview">
+          <img id="previewImg" src="" alt="Uploaded plant image" />
+          <button class="preview-remove" id="removeImg" aria-label="Remove image">
+            <i class="ph ph-x-circle"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="action-buttons">
+        <label class="btn btn--primary btn--icon" for="fileInput" role="button">
+          <i class="ph ph-upload-simple"></i>
+          <span>Upload Image</span>
+        </label>
+        <input type="file" id="fileInput" accept="image/*" class="visually-hidden" aria-label="Upload image file" />
+
+        <button class="btn btn--secondary btn--icon" id="cameraBtn">
+          <i class="ph ph-camera"></i>
+          <span>Open Camera</span>
+        </button>
+      </div>
+
+      <!-- Detect button -->
+      <button class="btn btn--detect" id="detectBtn" disabled>
+        <i class="ph ph-magnifying-glass"></i>
+        <span>Identify Plant</span>
+      </button>
+
+      <!-- Progress / loading -->
+      <div class="loading hidden" id="loadingState" aria-live="polite" role="status">
+        <div class="spinner"></div>
+        <p>Analyzing your plant image…</p>
+      </div>
+
+      <!-- Error state -->
+      <div class="error-state hidden" id="errorState" role="alert">
+        <i class="ph ph-warning-circle"></i>
+        <p id="errorMsg">Something went wrong. Please try again.</p>
+        <button class="btn btn--outline btn--sm" id="retryBtn">Try Again</button>
+      </div>
+    </div>
+
+    <!-- ===== RESULTS ===== -->
+    <section class="results-section hidden" id="resultsSection" aria-live="polite">
+      <div class="card results-card">
+        <div class="results-header">
+          <h2 class="results-title">
+            <i class="ph-fill ph-leaf"></i> Detection Results
+          </h2>
+          <button class="btn btn--outline btn--sm" id="newScanBtn">
+            <i class="ph ph-arrow-counter-clockwise"></i> New Scan
+          </button>
+        </div>
+
+        <!-- Top prediction -->
+        <div class="top-prediction" id="topPrediction">
+          <div class="top-prediction__image">
+            <img id="resultImg" src="" alt="Identified plant" />
+          </div>
+          <div class="top-prediction__info">
+            <span class="plant-label" id="plantLabel">—</span>
+            <div class="confidence-block">
+              <span class="confidence-label">Confidence</span>
+              <div class="confidence-bar-wrap">
+                <div class="confidence-bar" id="confidenceBar" style="width:0%"></div>
+              </div>
+              <span class="confidence-pct" id="confidencePct">0%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- All predictions list -->
+        <div class="predictions-list" id="predictionsList"></div>
+
+        <!-- Plant info panel (populated dynamically) -->
+        <div class="plant-info hidden" id="plantInfo">
+          <h3 class="plant-info__title"><i class="ph ph-info"></i> About this Plant</h3>
+          <div class="plant-info__body" id="plantInfoBody"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== HOW IT WORKS ===== -->
+    <section class="how-it-works" id="how-it-works">
+      <h2 class="section-title">How It Works</h2>
+      <div class="steps">
+        <div class="step">
+          <div class="step__num">1</div>
+          <div class="step__icon"><i class="ph ph-image-square"></i></div>
+          <h3>Upload / Capture</h3>
+          <p>Take a photo of any plant or upload an existing image from your gallery.</p>
+        </div>
+        <div class="step">
+          <div class="step__num">2</div>
+          <div class="step__icon"><i class="ph ph-cpu"></i></div>
+          <h3>AI Analysis</h3>
+          <p>Our trained Roboflow model analyzes the image using deep learning.</p>
+        </div>
+        <div class="step">
+          <div class="step__num">3</div>
+          <div class="step__icon"><i class="ph-fill ph-leaf"></i></div>
+          <h3>Get Results</h3>
+          <p>View the identified plant species along with confidence scores instantly.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== ABOUT ===== -->
+    <section class="about-section" id="about">
+      <div class="card about-card">
+        <div class="about-icon"><i class="ph-fill ph-first-aid-kit"></i></div>
+        <div>
+          <h2>About HerbSense</h2>
+          <p>
+            HerbSense uses a custom AI model trained on hundreds of medicinal plant species. It is built for researchers, herbalists, students, and nature enthusiasts who need quick and reliable plant identification on the go.
+          </p>
+          <p class="about-disclaimer">
+            <i class="ph ph-warning"></i>
+            <em>Disclaimer: Results are for educational purposes only. Always consult a professional before using any plant medicinally.</em>
+          </p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ===== FOOTER ===== -->
+  <footer class="footer">
+    <div class="container">
+      <p>© 2026 HerbSense — AI Medicinal Plant Identifier</p>
+      <p class="footer__sub">Powered by <a href="https://roboflow.com" target="_blank" rel="noopener">Roboflow</a> &amp; Phosphor Icons</p>
+    </div>
+  </footer>
+
+  <!-- ===== CONFIG MODAL ===== -->
+  <div class="modal-overlay hidden" id="configModal" role="dialog" aria-modal="true" aria-labelledby="configTitle">
+    <div class="modal card">
+      <div class="modal__header">
+        <h2 id="configTitle"><i class="ph ph-gear-six"></i> Roboflow Configuration</h2>
+        <button class="modal__close" id="closeConfigBtn" aria-label="Close configuration modal">
+          <i class="ph ph-x"></i>
+        </button>
+      </div>
+      <div class="modal__body">
+        <div class="form-group">
+          <label class="form-label" for="apiKeyInput">
+            <i class="ph ph-key"></i> Roboflow API Key
+          </label>
+          <input type="password" class="form-input" id="apiKeyInput" placeholder="Enter your Roboflow API key" autocomplete="off" />
+          <p class="form-hint">Find this in your Roboflow account → Settings → API Keys</p>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="workspaceInput">
+            <i class="ph ph-buildings"></i> Workspace Name
+          </label>
+          <input type="text" class="form-input" id="workspaceInput" placeholder="e.g. my-workspace" />
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="modelInput">
+            <i class="ph ph-brain"></i> Model / Project Name
+          </label>
+          <input type="text" class="form-input" id="modelInput" placeholder="e.g. medicinal-plants-model" />
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="versionInput">
+            <i class="ph ph-git-branch"></i> Model Version
+          </label>
+          <input type="number" class="form-input" id="versionInput" placeholder="e.g. 1" min="1" value="1" />
+        </div>
+
+        <div class="config-guide card--inset">
+          <h4><i class="ph ph-book-open"></i> Quick Guide</h4>
+          <ol>
+            <li>Go to <strong>roboflow.com</strong> and sign in.</li>
+            <li>Open your trained <strong>medicinal plants project</strong>.</li>
+            <li>Click <strong>Deploy → Hosted API</strong>.</li>
+            <li>Copy your <strong>API key</strong>, workspace slug, project name, and version.</li>
+            <li>Paste the values above and click Save.</li>
+          </ol>
+        </div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn btn--outline" id="cancelConfigBtn">Cancel</button>
+        <button class="btn btn--primary" id="saveConfigBtn">
+          <i class="ph ph-check"></i> Save Configuration
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== CAMERA MODAL ===== -->
+  <div class="modal-overlay hidden" id="cameraModal" role="dialog" aria-modal="true" aria-labelledby="cameraTitle">
+    <div class="modal modal--camera card">
+      <div class="modal__header">
+        <h2 id="cameraTitle"><i class="ph ph-camera"></i> Camera</h2>
+        <button class="modal__close" id="closeCameraBtn" aria-label="Close camera">
+          <i class="ph ph-x"></i>
+        </button>
+      </div>
+      <div class="modal__body camera-body">
+        <video id="cameraVideo" autoplay playsinline muted class="camera-video"></video>
+        <canvas id="captureCanvas" class="hidden"></canvas>
+        <div class="camera-controls">
+          <button class="btn btn--capture" id="captureBtn">
+            <i class="ph ph-camera"></i>
+            <span>Capture</span>
+          </button>
+        </div>
+        <p class="camera-hint"><i class="ph ph-info"></i> Point the camera at a plant leaf or flower.</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
+
