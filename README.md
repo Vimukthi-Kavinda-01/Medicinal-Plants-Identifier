@@ -2,49 +2,6 @@
 
 A full-stack web application for identifying medicinal plants and analyzing their therapeutic properties using computer vision. Built with **React** and **Tailwind CSS** on the frontend, and a secure **Node.js / Express** backend proxy connected to a custom **Roboflow YOLO11n AI Workflow**.
 
----
-
-## 📌 Answers to Key Architecture Questions
-
-### 1. Do we need to integrate a database?
-**No, a database is NOT required for the core AI detection to work.**
-
-- **Why it works without a database:**
-  Plant identification is **real-time and stateless**:
-  1. A user selects or captures a photo.
-  2. The frontend sends the image to the backend server.
-  3. The backend forwards the image to the Roboflow serverless inference endpoint.
-  4. Roboflow evaluates the model and returns the detected plant class and confidence score.
-  5. The backend parses the result and the frontend immediately displays the plant and its medicinal properties.
-  Nothing needs to be saved to disk or a database for this cycle to function.
-
-- **When would you need a database?**
-  You only need to add a database (e.g. SQLite, PostgreSQL, or MongoDB) if you want:
-  - **Scan History / Diary**: Allowing users to see their previous plant scans.
-  - **User Accounts**: Login, saved favorites, or custom notes.
-  - **Custom CMS**: Editing plant descriptions and remedies from an admin dashboard instead of the built-in botanical knowledge base.
-
----
-
-### 2. What other things do you need to make the AI model work in the app?
-
-To make the AI model actively identify plants, you need:
-
-1. **Your Roboflow API Key**:
-   - Get your Private API key from [app.roboflow.com/settings/api](https://app.roboflow.com/settings/api).
-   - Paste it into `backend/.env` as `ROBOFLOW_API_KEY=your_key_here`.
-2. **The Deployed Workflow Endpoint**:
-   - The workflow is already configured in `backend/src/routes/detect.js`:
-     - **Workspace**: `vimukthi-kavinda`
-     - **Workflow ID**: `medicinal-plants-vmedicinal-plants-ls8os-5toge-1-yolo11n-t1-logic`
-     - **Serverless URL**: `https://serverless.roboflow.com/infer/workflows/vimukthi-kavinda/medicinal-plants-vmedicinal-plants-ls8os-5toge-1-yolo11n-t1-logic`
-3. **Backend Server Running**:
-   - The backend acts as a **secure proxy**. It sends `Authorization: Bearer <API_KEY>` to Roboflow, so your API key is **never exposed in the user's browser**.
-4. **Camera Permissions**:
-   - When running locally, modern browsers permit camera access on `http://localhost:5173`. When deployed to production, your site must be served over `https://`.
-
----
-
 ## 📁 Project Structure
 
 ```
