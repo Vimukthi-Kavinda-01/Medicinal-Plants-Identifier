@@ -1,9 +1,17 @@
 import React from 'react';
-import { Sparkle, ArrowClockwise, CheckCircle, WarningCircle } from '@phosphor-icons/react';
+import { Sparkle, ArrowClockwise, WarningCircle, BookOpen, CircleNotch, ArrowCounterClockwise } from '@phosphor-icons/react';
 import { formatPlantName, getPlantInfo } from '../lib/plantKnowledge';
 import PlantInfoCard from './PlantInfoCard';
 
-export default function ResultsPanel({ predictions, imagePreview, onReset }) {
+export default function ResultsPanel({
+  predictions,
+  imagePreview,
+  description,
+  descriptionStatus,
+  descriptionError,
+  onRetryDescription,
+  onReset,
+}) {
   if (!predictions || predictions.length === 0) {
     return (
       <div className="mt-8 bg-white rounded-3xl p-6 sm:p-8 shadow-card border border-herb-100 text-center animate-slide-up">
@@ -120,6 +128,37 @@ export default function ResultsPanel({ predictions, imagePreview, onReset }) {
           </div>
         </div>
       </div>
+
+      {/* Generated description from the second model */}
+      <section className="rounded-2xl border border-herb-200 bg-[#f4fbf6] p-5 sm:p-6">
+        <div className="mb-3 flex items-start justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-herb-700 text-white">
+              <BookOpen size={18} weight="fill" />
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-herb-600">AI field notes</p>
+              <h4 className="mt-0.5 text-base font-bold text-herb-900">About {formattedTopName}</h4>
+            </div>
+          </div>
+          <span className="hidden rounded-full bg-white px-2.5 py-1 text-[10px] font-bold text-herb-600 sm:inline-block">Second model</span>
+        </div>
+
+        {descriptionStatus === 'loading' && (
+          <div className="flex items-center gap-2 text-sm text-herb-700">
+            <CircleNotch size={17} className="animate-spin" /> Generating a concise botanical description...
+          </div>
+        )}
+        {descriptionStatus === 'success' && <p className="text-sm leading-7 text-herb-900/80">{description}</p>}
+        {descriptionStatus === 'error' && (
+          <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-red-800">
+            <span>{descriptionError || 'The description could not be generated.'}</span>
+            <button type="button" onClick={onRetryDescription} className="inline-flex items-center gap-1.5 font-bold text-herb-700 hover:text-herb-900">
+              <ArrowCounterClockwise size={15} /> Try again
+            </button>
+          </div>
+        )}
+      </section>
 
       {/* Secondary Candidates List (if model returned multiple possibilities) */}
       {secondaryPredictions.length > 0 && (

@@ -5,6 +5,7 @@ const express = require('express');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const detectRoutes = require('./routes/detect');
+const describeRoutes = require('./routes/describe');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -50,16 +51,19 @@ app.use('/api/', apiLimiter);
 // ── Health Check ─────────────────────────────────────────────────────────────
 app.get('/api/health', (_req, res) => {
   const hasKey = Boolean(process.env.ROBOFLOW_API_KEY && process.env.ROBOFLOW_API_KEY.trim());
+  const hasDescriptionKey = Boolean(process.env.DESCRIPTION_API_KEY && process.env.DESCRIPTION_API_KEY.trim());
   res.json({
     status: 'ok',
     service: 'HerbSense Backend',
     roboflowConfigured: hasKey,
+    descriptionConfigured: hasDescriptionKey,
     timestamp: new Date().toISOString(),
   });
 });
 
 // ── Routes ───────────────────────────────────────────────────────────────────
 app.use('/api', detectRoutes);
+app.use('/api', describeRoutes);
 
 // ── 404 Handler ──────────────────────────────────────────────────────────────
 app.use((_req, res) => {

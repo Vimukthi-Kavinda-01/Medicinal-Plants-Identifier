@@ -53,9 +53,14 @@ Medicinal Plants Identifier/
 Open `backend/.env` in any text editor and add your key:
 ```env
 ROBOFLOW_API_KEY=your_private_roboflow_key
+DESCRIPTION_API_KEY=your_description_model_key
+DESCRIPTION_API_URL=https://api.openai.com/v1/chat/completions
+DESCRIPTION_MODEL=gpt-4o-mini
 PORT=3001
 FRONTEND_URL=http://localhost:5173
 ```
+
+The description request uses the OpenAI-compatible Chat Completions format. OpenAI works with the defaults above; other compatible providers only need their endpoint and model name changed. Keep both keys in `backend/.env` only.
 
 ### Step 2: Install and Start the Backend
 Open a terminal in the root directory:
@@ -90,4 +95,6 @@ You will see:
 2. Click **"Choose from Gallery"** or **"Open Camera"** to take a photo of a medicinal plant.
 3. Click **"Identify Medicinal Plant"**.
 4. View the identified plant name, confidence percentage bar, other candidate matches, and complete botanical & medicinal profile.
+
+After identification, HerbSense sends the top plant name to the second model and displays its plain-language field description. If that model is unavailable, the identification result still loads and the description can be retried from the result card.
 

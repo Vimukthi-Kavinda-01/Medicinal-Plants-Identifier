@@ -36,6 +36,21 @@ export async function detectMedicinalPlant(base64Image) {
   return data.predictions || [];
 }
 
+export async function describePlant(plantName) {
+  const response = await fetch(`${API_BASE_URL}/api/describe`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ plantName }),
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.error || `Description service returned status ${response.status}`);
+  }
+
+  return data.description || '';
+}
+
 /**
  * Checks the backend health and if Roboflow API key is loaded.
  * @returns {Promise<{status: string, roboflowConfigured: boolean}>}

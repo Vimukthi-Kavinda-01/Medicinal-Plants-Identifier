@@ -33,12 +33,7 @@ export default {
       },
       fontFamily: {
         sans: [
-          'Segoe UI',
-          '-apple-system',
-          'BlinkMacSystemFont',
-          'Roboto',
-          'Helvetica Neue',
-          'Arial',
+          'DM Sans',
           'sans-serif',
         ],
       },

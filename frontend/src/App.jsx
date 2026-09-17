@@ -20,7 +20,9 @@ import Toast from './components/Toast';
 
 import { useCamera } from './hooks/useCamera';
 import { useDetection } from './hooks/useDetection';
+import { usePlantDescription } from './hooks/usePlantDescription';
 import { checkBackendHealth } from './lib/api';
+import { formatPlantName } from './lib/plantKnowledge';
 
 export default function App() {
   const [imagePreview, setImagePreview] = useState(null);
@@ -29,10 +31,12 @@ export default function App() {
     checked: false,
     online: false,
     roboflowConfigured: false,
+    descriptionConfigured: false,
   });
 
   const camera = useCamera();
   const detection = useDetection();
+  const plantDescription = usePlantDescription();
 
   // Show a floating toast message
   const showToast = useCallback((message, type = 'info') => {
@@ -47,6 +51,7 @@ export default function App() {
         checked: true,
         online: health.status === 'ok',
         roboflowConfigured: Boolean(health.roboflowConfigured),
+        descriptionConfigured: Boolean(health.descriptionConfigured),
       });
     }
     verifyBackend();
@@ -56,13 +61,15 @@ export default function App() {
   const handleImageSelected = useCallback((dataUrl) => {
     setImagePreview(dataUrl);
     detection.reset();
-  }, [detection]);
+    plantDescription.reset();
+  }, [detection, plantDescription]);
 
   // Clear current image and reset results
   const handleClearImage = useCallback(() => {
     setImagePreview(null);
     detection.reset();
-  }, [detection]);
+    plantDescription.reset();
+  }, [detection, plantDescription]);
 
   // Open camera viewfinder
   const handleOpenCamera = useCallback(async () => {
@@ -79,11 +86,12 @@ export default function App() {
       const capturedDataUrl = camera.capture();
       setImagePreview(capturedDataUrl);
       detection.reset();
+      plantDescription.reset();
       showToast('Photo captured successfully!', 'success');
     } catch (err) {
       showToast(err.message, 'error');
     }
-  }, [camera, detection, showToast]);
+  }, [camera, detection, plantDescription, showToast]);
 
   // Run AI identification
   const handleRunDetection = useCallback(async () => {
@@ -93,11 +101,14 @@ export default function App() {
     }
 
     try {
-      await detection.run(imagePreview);
+      const results = await detection.run(imagePreview);
+      if (results?.[0]) {
+        await plantDescription.run(formatPlantName(results[0].class));
+      }
     } catch (err) {
       showToast(err.message, 'error');
     }
-  }, [imagePreview, detection, showToast]);
+  }, [imagePreview, detection, plantDescription, showToast]);
 
   return (
     <div className="min-h-screen flex flex-col bg-herb-50 font-sans text-gray-800">
@@ -108,7 +119,7 @@ export default function App() {
       <Hero />
 
       {/* Main Detection Workspace */}
-      <main id="detect" className="flex-1 max-w-4xl w-full mx-auto px-4 -mt-6 sm:-mt-8 z-10">
+      <main id="detect" className="z-10 mx-auto -mt-6 w-full max-w-5xl flex-1 px-4 sm:-mt-8 sm:px-6">
         {/* Backend Configuration Notice (if API key not added yet in backend/.env) */}
         {backendStatus.checked && (!backendStatus.online || !backendStatus.roboflowConfigured) && (
           <div className="mb-4 bg-white rounded-2xl p-4 sm:p-5 shadow-card border border-amber-200 flex items-start gap-3 text-xs sm:text-sm text-amber-900">
@@ -142,14 +153,24 @@ export default function App() {
           </div>
         )}
 
+        {backendStatus.checked && backendStatus.online && backendStatus.roboflowConfigured && !backendStatus.descriptionConfigured && (
+          <div className="mb-4 flex items-start gap-3 rounded-2xl border border-herb-200 bg-herb-50 p-4 text-xs text-herb-900 sm:p-5 sm:text-sm">
+            <Key size={22} className="mt-0.5 shrink-0 text-herb-600" weight="duotone" />
+            <div className="space-y-1">
+              <span className="block font-bold">Plant descriptions are waiting for a model key</span>
+              <p className="text-herb-800/80">Add <code className="rounded bg-white px-1.5 py-0.5 font-mono font-bold">DESCRIPTION_API_KEY</code> to <code className="rounded bg-white px-1.5 py-0.5 font-mono font-bold">backend/.env</code> and restart the backend. Identification will still work without it.</p>
+            </div>
+          </div>
+        )}
+
         {/* Primary Interactive Card */}
-        <div className="bg-white rounded-3xl p-5 sm:p-8 shadow-float border border-herb-100 space-y-6">
+        <div className="workspace-card space-y-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg sm:text-xl font-bold text-gray-900 tracking-tight">
               Scan Medicinal Plant
             </h2>
-            <span className="text-xs font-semibold text-herb-700 bg-herb-100 px-3 py-1 rounded-full">
-              Mobile First
+            <span className="status-pill">
+              <span className="status-dot" /> Ready to scan
             </span>
           </div>
 
@@ -240,6 +261,13 @@ export default function App() {
           <ResultsPanel
             predictions={detection.predictions}
             imagePreview={imagePreview}
+            description={plantDescription.description}
+            descriptionStatus={plantDescription.status}
+            descriptionError={plantDescription.error}
+            onRetryDescription={() => {
+              const topPrediction = detection.predictions[0];
+              if (topPrediction) plantDescription.run(formatPlantName(topPrediction.class));
+            }}
             onReset={handleClearImage}
           />
         )}

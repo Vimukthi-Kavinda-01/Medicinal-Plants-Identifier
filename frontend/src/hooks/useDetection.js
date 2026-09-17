@@ -20,6 +20,7 @@ export function useDetection() {
       const results = await detectMedicinalPlant(imageData);
       setPredictions(results);
       setStatus('success');
+      return results;
     } catch (err) {
       console.error('[Detection Hook Error]:', err);
       setError(err.message || 'Detection failed. Please try again.');
