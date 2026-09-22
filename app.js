@@ -6,7 +6,7 @@
  * Calls the deployed Roboflow Workflow via the Serverless Run endpoint:
  *
  *   POST https://serverless.roboflow.com/vimukthi-kavinda/workflows/
- *        medicinal-plants-vmedicinal-plants-ls8os-5toge-1-yolo11n-t1-logic
+ *        medicinal-plants-dataset-v-02-vmedicinal-plants-dataset-v-0-2-1-yolo11n-t1-logic
  *   Authorization: Bearer <api_key>
  *   Content-Type: application/json
  *   Body: { "inputs": { "image": { "type": "base64", "value": "..." } } }
@@ -24,8 +24,8 @@
 
 // ── Workflow constants (hardcoded — this app targets one specific workflow) ───
 const WORKFLOW_ENDPOINT =
-  'https://serverless.roboflow.com/infer/workflows/vimukthi-kavinda/' +
-  'medicinal-plants-vmedicinal-plants-ls8os-5toge-1-yolo11n-t1-logic';
+  'https://serverless.roboflow.com/vimukthi-kavinda/workflows/' +
+  'medicinal-plants-dataset-v-02-vmedicinal-plants-dataset-v-0-2-1-yolo11n-t1-logic';
 
 const STORAGE_KEY      = 'herbsense_config_v2'; // versioned to avoid stale shape
 const REQUEST_TIMEOUT  = 30_000; // ms — workflow cap is 20 s; add buffer
