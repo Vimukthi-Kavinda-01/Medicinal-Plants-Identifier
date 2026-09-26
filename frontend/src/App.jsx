@@ -17,6 +17,7 @@ import HowItWorks from './components/HowItWorks';
 import About from './components/About';
 import Footer from './components/Footer';
 import Toast from './components/Toast';
+import Profile from './components/Profile';
 
 import { useCamera } from './hooks/useCamera';
 import { useDetection } from './hooks/useDetection';
@@ -27,6 +28,7 @@ import { formatPlantName } from './lib/plantKnowledge';
 export default function App() {
   const [imagePreview, setImagePreview] = useState(null);
   const [toast, setToast] = useState(null);
+  const [showProfile, setShowProfile] = useState(false);
   const [backendStatus, setBackendStatus] = useState({
     checked: false,
     online: false,
@@ -112,8 +114,15 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col bg-herb-50 font-sans text-gray-800">
+      {showProfile ? (
+        <Profile onBack={() => setShowProfile(false)} />
+      ) : (
+        <>
       {/* Top Navbar */}
-      <Header backendConfigured={backendStatus.roboflowConfigured} />
+      <Header
+          backendConfigured={backendStatus.roboflowConfigured}
+          onProfileClick={() => setShowProfile(true)}
+      />
 
       {/* Hero Banner */}
       <Hero />
@@ -291,6 +300,8 @@ export default function App() {
 
       {/* Toast Notification */}
       <Toast toast={toast} onClose={() => setToast(null)} />
+        </>
+      )}
     </div>
   );
 }
