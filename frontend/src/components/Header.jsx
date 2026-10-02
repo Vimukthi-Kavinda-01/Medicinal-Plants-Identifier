@@ -1,7 +1,7 @@
 import React from 'react';
 import { Leaf, Sparkle } from '@phosphor-icons/react';
 
-export default function Header({ backendConfigured }) {
+export default function Header({ backendConfigured, onProfileClick }) {
   return (
     <header className="sticky top-0 z-40 border-b border-[#e3efe6] bg-white/90 text-herb-900 backdrop-blur-xl">
       <div className="mx-auto flex h-[72px] max-w-5xl items-center justify-between px-4 sm:px-6">
@@ -23,6 +23,13 @@ export default function Header({ backendConfigured }) {
 
         {/* Navigation links */}
         <nav className="flex items-center gap-1 sm:gap-2">
+          <button
+            type="button"
+            onClick={onProfileClick}
+            className="rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:bg-herb-50 hover:text-herb-700 sm:text-sm"
+            >
+              Profile
+          </button>
           <a
             href="#detect"
             className="rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:bg-herb-50 hover:text-herb-700 sm:text-sm"
@@ -41,6 +48,7 @@ export default function Header({ backendConfigured }) {
           >
             About
           </a>
+          
         </nav>
       </div>
     </header>
