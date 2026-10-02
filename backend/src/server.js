@@ -6,6 +6,11 @@ const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const detectRoutes = require('./routes/detect');
 const describeRoutes = require('./routes/describe');
+const userRoutes = require('./routes/users');
+const plantRoutes = require('./routes/plants');
+const scanRoutes = require('./routes/scans');
+const savedPlantRoutes = require('./routes/savedPlants');
+const db = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -27,7 +32,7 @@ app.use(
       }
       return callback(new Error(`CORS blocked for origin: ${origin}`));
     },
-    methods: ['GET', 'POST', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   })
 );
@@ -49,12 +54,27 @@ const apiLimiter = rateLimit({
 app.use('/api/', apiLimiter);
 
 // ── Health Check ─────────────────────────────────────────────────────────────
-app.get('/api/health', (_req, res) => {
+app.get('/api/health', async (_req, res) => {
   const hasKey = Boolean(process.env.ROBOFLOW_API_KEY && process.env.ROBOFLOW_API_KEY.trim());
   const hasDescriptionKey = Boolean(process.env.DESCRIPTION_API_KEY && process.env.DESCRIPTION_API_KEY.trim());
+
+  let databaseConnected = false;
+  let databaseDetails = {};
+  try {
+    const dbCheck = await db.testConnection();
+    databaseConnected = dbCheck.connected;
+    if (dbCheck.connected) {
+      databaseDetails = { database: dbCheck.database };
+    }
+  } catch (err) {
+    databaseConnected = false;
+  }
+
   res.json({
     status: 'ok',
     service: 'HerbSense Backend',
+    databaseConnected,
+    ...databaseDetails,
     roboflowConfigured: hasKey,
     descriptionConfigured: hasDescriptionKey,
     timestamp: new Date().toISOString(),
@@ -64,6 +84,10 @@ app.get('/api/health', (_req, res) => {
 // ── Routes ───────────────────────────────────────────────────────────────────
 app.use('/api', detectRoutes);
 app.use('/api', describeRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api', plantRoutes);
+app.use('/api', scanRoutes);
+app.use('/api', savedPlantRoutes);
 
 // ── 404 Handler ──────────────────────────────────────────────────────────────
 app.use((_req, res) => {

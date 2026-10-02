@@ -22,7 +22,7 @@ import Profile from './components/Profile';
 import { useCamera } from './hooks/useCamera';
 import { useDetection } from './hooks/useDetection';
 import { usePlantDescription } from './hooks/usePlantDescription';
-import { checkBackendHealth } from './lib/api';
+import { checkBackendHealth, recordScan } from './lib/api';
 import { formatPlantName } from './lib/plantKnowledge';
 
 export default function App() {
@@ -105,7 +105,23 @@ export default function App() {
     try {
       const results = await detection.run(imagePreview);
       if (results?.[0]) {
-        await plantDescription.run(formatPlantName(results[0].class));
+        let desc = null;
+        try {
+          desc = await plantDescription.run(formatPlantName(results[0].class));
+        } catch {
+          // Description generation error does not stop detection
+        }
+
+        // Persist scan history to PostgreSQL database asynchronously
+        const activeUserId = localStorage.getItem('herbsense_user_id') || null;
+        recordScan({
+          detectedClass: results[0].class,
+          confidence: results[0].confidence,
+          predictionsPayload: results,
+          description: desc || null,
+          imageUrl: null,
+          userId: activeUserId,
+        });
       }
     } catch (err) {
       showToast(err.message, 'error');
