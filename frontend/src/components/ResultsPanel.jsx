@@ -1,6 +1,15 @@
-import React from 'react';
-import { Sparkle, ArrowClockwise, WarningCircle, BookOpen, CircleNotch, ArrowCounterClockwise } from '@phosphor-icons/react';
+import React, { useState } from 'react';
+import {
+  Sparkle,
+  ArrowClockwise,
+  WarningCircle,
+  BookOpen,
+  CircleNotch,
+  ArrowCounterClockwise,
+  BookmarkSimple,
+} from '@phosphor-icons/react';
 import { formatPlantName, getPlantInfo } from '../lib/plantKnowledge';
+import { getUserProfile, getPlantBySlug, savePlant } from '../lib/api';
 import PlantInfoCard from './PlantInfoCard';
 
 export default function ResultsPanel({
@@ -12,22 +21,33 @@ export default function ResultsPanel({
   onRetryDescription,
   onReset,
 }) {
+  const [isSaving, setIsSaving] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
+  const [saveMessage, setSaveMessage] = useState('');
+
   if (!predictions || predictions.length === 0) {
     return (
       <div className="mt-8 bg-white rounded-3xl p-6 sm:p-8 shadow-card border border-herb-100 text-center animate-slide-up">
         <div className="w-16 h-16 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-3">
           <WarningCircle size={32} />
         </div>
-        <h3 className="font-bold text-gray-800 text-lg mb-1">No Plant Detected</h3>
+
+        <h3 className="font-bold text-gray-800 text-lg mb-1">
+          No Plant Detected
+        </h3>
+
         <p className="text-xs sm:text-sm text-gray-500 max-w-sm mx-auto mb-5">
-          The AI model did not identify a clear medicinal plant in this image. Try taking a closer, well-lit photo
-          focusing on the leaves, stem, or flowers.
+          The AI model did not identify a clear medicinal plant in this image.
+          Try taking a closer, well-lit photo focusing on the leaves, stem, or
+          flowers.
         </p>
+
         <button
           onClick={onReset}
           className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-herb-600 hover:bg-herb-700 text-white font-semibold text-xs transition-colors"
         >
-          <ArrowClockwise size={15} /> Try Another Image
+          <ArrowClockwise size={15} />
+          Try Another Image
         </button>
       </div>
     );
@@ -39,6 +59,46 @@ export default function ResultsPanel({
   const topPlantInfo = getPlantInfo(topPrediction.class);
   const secondaryPredictions = predictions.slice(1, 5);
 
+  const handleSavePlant = async () => {
+    if (isSaving || isSaved) return;
+
+    try {
+      setIsSaving(true);
+      setSaveMessage('');
+
+      const username = localStorage.getItem('herbsense_profile_username');
+
+      if (!username) {
+        throw new Error('Please create a profile before saving plants.');
+      }
+
+      const user = await getUserProfile(username);
+
+      if (!user?.id) {
+        throw new Error('Could not find your profile in the database.');
+      }
+
+      const plant = await getPlantBySlug(topPrediction.class);
+
+      if (!plant?.id) {
+        setSaveMessage(
+          'This plant is identified, but it is not available in the plant database yet.'
+        );
+        return;
+      }
+
+      await savePlant(user.id, plant.id);
+
+      setIsSaved(true);
+      setSaveMessage('Plant saved successfully.');
+    } catch (error) {
+      console.error('[HerbSense] Save plant failed:', error);
+      setSaveMessage(error.message || 'Could not save this plant.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const getConfidenceBadge = (pct) => {
     if (pct >= 75) {
       return {
@@ -47,6 +107,7 @@ export default function ResultsPanel({
         bar: 'bg-herb-500',
       };
     }
+
     if (pct >= 45) {
       return {
         label: 'Moderate Match',
@@ -54,6 +115,7 @@ export default function ResultsPanel({
         bar: 'bg-accent-500',
       };
     }
+
     return {
       label: 'Low Confidence',
       bg: 'bg-amber-100 text-amber-800 border-amber-300',
@@ -71,9 +133,15 @@ export default function ResultsPanel({
           <span className="w-8 h-8 rounded-lg bg-herb-100 text-herb-700 flex items-center justify-center font-bold">
             <Sparkle size={18} weight="fill" />
           </span>
+
           <div>
-            <h3 className="font-bold text-gray-900 text-lg sm:text-xl">Identification Result</h3>
-            <p className="text-xs text-gray-500">Processed by Roboflow YOLO11n Logic</p>
+            <h3 className="font-bold text-gray-900 text-lg sm:text-xl">
+              Identification Result
+            </h3>
+
+            <p className="text-xs text-gray-500">
+              Processed by Roboflow YOLO11n Logic
+            </p>
           </div>
         </div>
 
@@ -81,7 +149,8 @@ export default function ResultsPanel({
           onClick={onReset}
           className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-gray-200 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
         >
-          <ArrowClockwise size={14} /> Scan Another
+          <ArrowClockwise size={14} />
+          Scan Another
         </button>
       </div>
 
@@ -102,22 +171,67 @@ export default function ResultsPanel({
           {/* Plant summary & confidence */}
           <div className="flex-1 space-y-2">
             <div className="flex items-center justify-between flex-wrap gap-2">
-              <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${confidenceBadge.bg}`}>
+              <span
+                className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${confidenceBadge.bg}`}
+              >
                 {confidenceBadge.label}
               </span>
-              <span className="text-xs text-gray-500 font-medium">Rank #1 Match</span>
+
+              <span className="text-xs text-gray-500 font-medium">
+                Rank #1 Match
+              </span>
             </div>
 
-            <h2 className="text-xl sm:text-2xl font-extrabold text-herb-900 tracking-tight">
-              {formattedTopName}
-            </h2>
+            {/* Plant Name + Save Button */}
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <h2 className="text-xl sm:text-2xl font-extrabold text-herb-900 tracking-tight">
+                {formattedTopName}
+              </h2>
+
+              <button
+                type="button"
+                onClick={handleSavePlant}
+                disabled={isSaving || isSaved}
+                className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-colors ${
+                  isSaved
+                    ? 'bg-herb-100 text-herb-800 border border-herb-300'
+                    : 'bg-herb-700 text-white hover:bg-herb-800'
+                } disabled:cursor-not-allowed`}
+              >
+                <BookmarkSimple
+                  size={16}
+                  weight={isSaved ? 'fill' : 'bold'}
+                />
+
+                {isSaving
+                  ? 'Saving...'
+                  : isSaved
+                    ? 'Saved ✓'
+                    : 'Save Plant'}
+              </button>
+            </div>
+
+            {/* Save Message */}
+            {saveMessage && (
+              <p
+                className={`text-xs font-medium ${
+                  isSaved ? 'text-herb-700' : 'text-amber-700'
+                }`}
+              >
+                {saveMessage}
+              </p>
+            )}
 
             {/* Confidence Progress Bar */}
             <div className="space-y-1 pt-1">
               <div className="flex justify-between text-xs font-semibold">
                 <span className="text-gray-600">Confidence Score</span>
-                <span className="text-herb-800">{topConfidencePct}%</span>
+
+                <span className="text-herb-800">
+                  {topConfidencePct}%
+                </span>
               </div>
+
               <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden p-0.5">
                 <div
                   className={`h-full rounded-full transition-all duration-700 ease-out ${confidenceBadge.bar}`}
@@ -136,40 +250,67 @@ export default function ResultsPanel({
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-herb-700 text-white">
               <BookOpen size={18} weight="fill" />
             </div>
+
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-herb-600">AI field notes</p>
-              <h4 className="mt-0.5 text-base font-bold text-herb-900">About {formattedTopName}</h4>
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-herb-600">
+                AI field notes
+              </p>
+
+              <h4 className="mt-0.5 text-base font-bold text-herb-900">
+                About {formattedTopName}
+              </h4>
             </div>
           </div>
-          <span className="hidden rounded-full bg-white px-2.5 py-1 text-[10px] font-bold text-herb-600 sm:inline-block">Second model</span>
+
+          <span className="hidden rounded-full bg-white px-2.5 py-1 text-[10px] font-bold text-herb-600 sm:inline-block">
+            Second model
+          </span>
         </div>
 
         {descriptionStatus === 'loading' && (
           <div className="flex items-center gap-2 text-sm text-herb-700">
-            <CircleNotch size={17} className="animate-spin" /> Generating a concise botanical description...
+            <CircleNotch size={17} className="animate-spin" />
+            Generating a concise botanical description...
           </div>
         )}
-        {descriptionStatus === 'success' && <p className="text-sm leading-7 text-herb-900/80">{description}</p>}
+
+        {descriptionStatus === 'success' && (
+          <p className="text-sm leading-7 text-herb-900/80">
+            {description}
+          </p>
+        )}
+
         {descriptionStatus === 'error' && (
           <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-red-800">
-            <span>{descriptionError || 'The description could not be generated.'}</span>
-            <button type="button" onClick={onRetryDescription} className="inline-flex items-center gap-1.5 font-bold text-herb-700 hover:text-herb-900">
-              <ArrowCounterClockwise size={15} /> Try again
+            <span>
+              {descriptionError ||
+                'The description could not be generated.'}
+            </span>
+
+            <button
+              type="button"
+              onClick={onRetryDescription}
+              className="inline-flex items-center gap-1.5 font-bold text-herb-700 hover:text-herb-900"
+            >
+              <ArrowCounterClockwise size={15} />
+              Try again
             </button>
           </div>
         )}
       </section>
 
-      {/* Secondary Candidates List (if model returned multiple possibilities) */}
+      {/* Secondary Candidates List */}
       {secondaryPredictions.length > 0 && (
         <div className="space-y-3 pt-2">
           <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400">
             Other Potential Candidates
           </h4>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             {secondaryPredictions.map((cand, idx) => {
               const candPct = Math.round(cand.confidence * 100);
               const candBadge = getConfidenceBadge(candPct);
+
               return (
                 <div
                   key={idx}
@@ -179,6 +320,7 @@ export default function ResultsPanel({
                     <span className="font-semibold text-xs sm:text-sm text-gray-800 block">
                       {formatPlantName(cand.class)}
                     </span>
+
                     <div className="w-28 sm:w-36 h-1.5 bg-gray-200 rounded-full overflow-hidden">
                       <div
                         className={`h-full ${candBadge.bar}`}
@@ -186,7 +328,10 @@ export default function ResultsPanel({
                       />
                     </div>
                   </div>
-                  <span className="text-xs font-bold text-gray-600 ml-2">{candPct}%</span>
+
+                  <span className="text-xs font-bold text-gray-600 ml-2">
+                    {candPct}%
+                  </span>
                 </div>
               );
             })}
@@ -195,8 +340,10 @@ export default function ResultsPanel({
       )}
 
       {/* Medicinal Profile & Uses Card */}
-      <PlantInfoCard plantInfo={topPlantInfo} plantName={formattedTopName} />
+      <PlantInfoCard
+        plantInfo={topPlantInfo}
+        plantName={formattedTopName}
+      />
     </div>
   );
 }
-
