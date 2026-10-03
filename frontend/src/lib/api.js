@@ -1,6 +1,46 @@
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
 
+const BACKEND_DOWN_MESSAGE =
+  'Cannot reach the backend server. Open a terminal, run "cd backend" then "npm run dev", and check it prints "HerbSense Backend running on http://localhost:3001".';
+
+/* =========================================================
+   HELPERS
+   ========================================================= */
+
+/**
+ * Builds a readable error from a failed response. An empty 5xx body usually means
+ * the backend (or the dev proxy in front of it) is not running.
+ */
+function errorFromResponse(response, data, fallback) {
+  if (data && data.error) return new Error(data.error);
+  if ([500, 502, 503, 504].includes(response.status)) return new Error(BACKEND_DOWN_MESSAGE);
+  return new Error(fallback || `Server responded with error status ${response.status}`);
+}
+
+/** fetch() that turns network failures into one readable message. */
+async function safeFetch(url, options) {
+  try {
+    return await fetch(url, options);
+  } catch {
+    throw new Error(BACKEND_DOWN_MESSAGE);
+  }
+}
+
+async function postJson(path, body, fallback) {
+  const response = await safeFetch(`${API_BASE_URL}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw errorFromResponse(response, data, fallback);
+  }
+  return data;
+}
+
 /* =========================================================
    BACKEND HEALTH
    ========================================================= */
@@ -28,56 +68,63 @@ export async function checkBackendHealth() {
 }
 
 /* =========================================================
-   PLANT DETECTION
+   GUIDED IDENTIFICATION (steps 4–9)
+   ========================================================= */
+
+/**
+ * Steps 4–5: runs the image model and returns the top-3 predictions.
+ * `stage` is 'none' | 'verification' (questions included) | 'final' (result included).
+ * @param {string} base64Image - Base64 string or data URL of the image
+ */
+export async function identifyPlant(base64Image) {
+  if (!base64Image) {
+    throw new Error('No image provided for identification.');
+  }
+  return postJson('/api/identify', { image: base64Image }, 'Plant identification failed.');
+}
+
+/**
+ * Steps 6–9: sends the feature answers and returns the final verified result.
+ * @param {Array<{class: string, confidence: number}>} candidates - top-3 from identifyPlant
+ * @param {Object<string,string>} answers - { questionId: optionValue }
+ */
+export async function verifyPlant(candidates, answers) {
+  return postJson(
+    '/api/verify',
+    {
+      candidates: candidates.map(({ class: label, confidence }) => ({ class: label, confidence })),
+      answers,
+    },
+    'Plant verification failed.'
+  );
+}
+
+/* =========================================================
+   PLANT DETECTION (original single-step endpoint)
    ========================================================= */
 
 export async function detectMedicinalPlant(imageData) {
   if (!imageData) {
     throw new Error('Please provide an image.');
   }
-
-  const response = await fetch(`${API_BASE_URL}/api/detect`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      image: imageData,
-    }),
-  });
-
-  const data = await response.json().catch(() => ({}));
-
-  if (!response.ok) {
-    throw new Error(data.error || 'Plant identification failed.');
-  }
-
-  return data;
+  return postJson('/api/detect', { image: imageData }, 'Plant identification failed.');
 }
+
+/* =========================================================
+   PLANT DESCRIPTION
+   ========================================================= */
+
+/**
+ * Returns the description as a plain string (usePlantDescription and ResultsPanel
+ * render it as text, so returning the whole response object would crash the page).
+ */
 export async function describePlant(plantName) {
   if (!plantName) {
     throw new Error('Plant name is required.');
   }
 
-  const response = await fetch(`${API_BASE_URL}/api/describe`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      plantName,
-    }),
-  });
-
-  const data = await response.json().catch(() => ({}));
-
-  if (!response.ok) {
-    throw new Error(
-      data.error || 'Failed to generate plant description.'
-    );
-  }
-
-  return data;
+  const data = await postJson('/api/describe', { plantName }, 'Failed to generate plant description.');
+  return data.description || '';
 }
 
 /* =========================================================
@@ -90,28 +137,18 @@ export async function recordScan(scanData) {
   }
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/scans`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+    return await postJson(
+      '/api/scans',
+      {
         userId: scanData.userId || null,
         detectedClass: scanData.detectedClass || null,
         confidence: scanData.confidence ?? null,
         predictionsPayload: scanData.predictionsPayload || null,
         description: scanData.description || null,
         imageUrl: scanData.imageUrl || null,
-      }),
-    });
-
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to record scan.');
-    }
-
-    return data;
+      },
+      'Failed to record scan.'
+    );
   } catch (error) {
     console.error('[HerbSense] Failed to record scan:', error);
     throw error;
@@ -124,12 +161,11 @@ export async function getScans(userId = null) {
       ? `${API_BASE_URL}/api/scans?userId=${encodeURIComponent(userId)}`
       : `${API_BASE_URL}/api/scans`;
 
-    const response = await fetch(url);
-
+    const response = await safeFetch(url);
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      throw new Error(data.error || 'Failed to fetch scan history.');
+      throw errorFromResponse(response, data, 'Failed to fetch scan history.');
     }
 
     return data.scans || [];
@@ -147,22 +183,7 @@ export async function saveUserProfile(profileData) {
   if (!profileData) {
     throw new Error('Profile data is required.');
   }
-
-  const response = await fetch(`${API_BASE_URL}/api/users/profile`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(profileData),
-  });
-
-  const data = await response.json().catch(() => ({}));
-
-  if (!response.ok) {
-    throw new Error(data.error || 'Could not save profile.');
-  }
-
-  return data;
+  return postJson('/api/users/profile', profileData, 'Could not save profile.');
 }
 
 export async function getUserProfile(username) {
@@ -170,14 +191,13 @@ export async function getUserProfile(username) {
     throw new Error('Username is required.');
   }
 
-  const response = await fetch(
+  const response = await safeFetch(
     `${API_BASE_URL}/api/users/profile/${encodeURIComponent(username)}`
   );
-
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(data.error || 'Could not fetch user profile.');
+    throw errorFromResponse(response, data, 'Could not fetch user profile.');
   }
 
   return data.user;
@@ -189,12 +209,11 @@ export async function getUserProfile(username) {
 
 export async function getPlants() {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/plants`);
-
+    const response = await safeFetch(`${API_BASE_URL}/api/plants`);
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      throw new Error(data.error || 'Failed to fetch plants.');
+      throw errorFromResponse(response, data, 'Failed to fetch plants.');
     }
 
     return data.plants || [];
@@ -210,20 +229,14 @@ export async function getPlantBySlug(slug) {
   }
 
   try {
-    const cleanSlug = encodeURIComponent(
-      slug.trim().toLowerCase().replace(/[\s_]+/g, '-')
-    );
-
-    const response = await fetch(
-      `${API_BASE_URL}/api/plants/${cleanSlug}`
-    );
+    const cleanSlug = encodeURIComponent(slug.trim().toLowerCase().replace(/[\s_]+/g, '-'));
+    const response = await safeFetch(`${API_BASE_URL}/api/plants/${cleanSlug}`);
 
     if (!response.ok) {
       return null;
     }
 
     const data = await response.json().catch(() => ({}));
-
     return data.plant || null;
   } catch (error) {
     console.error('[HerbSense] Failed to fetch plant:', error);
@@ -239,28 +252,11 @@ export async function savePlant(userId, plantId, userNotes = null) {
   if (!userId || !plantId) {
     throw new Error('User ID and Plant ID are required to save a plant.');
   }
-
-  const response = await fetch(`${API_BASE_URL}/api/saved-plants`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      userId,
-      plantId,
-      userNotes,
-    }),
-  });
-
-  const data = await response.json().catch(() => ({}));
-
-  if (!response.ok) {
-    throw new Error(
-      data.error || 'Failed to bookmark plant in database.'
-    );
-  }
-
-  return data;
+  return postJson(
+    '/api/saved-plants',
+    { userId, plantId, userNotes },
+    'Failed to bookmark plant in database.'
+  );
 }
 
 export async function getSavedPlants(userId) {
@@ -269,7 +265,7 @@ export async function getSavedPlants(userId) {
   }
 
   try {
-    const response = await fetch(
+    const response = await safeFetch(
       `${API_BASE_URL}/api/saved-plants?userId=${encodeURIComponent(userId)}`
     );
 
@@ -278,7 +274,6 @@ export async function getSavedPlants(userId) {
     }
 
     const data = await response.json().catch(() => ({}));
-
     return data.savedPlants || [];
   } catch (error) {
     console.error('[HerbSense] Failed to fetch saved plants:', error);
@@ -295,21 +290,15 @@ export async function removeSavedPlant(userId, plantId) {
     throw new Error('User ID and Plant ID are required.');
   }
 
-  const response = await fetch(
-    `${API_BASE_URL}/api/saved-plants/${encodeURIComponent(
-      plantId
-    )}?userId=${encodeURIComponent(userId)}`,
-    {
-      method: 'DELETE',
-    }
+  const response = await safeFetch(
+    `${API_BASE_URL}/api/saved-plants/${encodeURIComponent(plantId)}?userId=${encodeURIComponent(userId)}`,
+    { method: 'DELETE' }
   );
 
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(
-      data.error || 'Failed to remove saved plant.'
-    );
+    throw errorFromResponse(response, data, 'Failed to remove saved plant.');
   }
 
   return data;

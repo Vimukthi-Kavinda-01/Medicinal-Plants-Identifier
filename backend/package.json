@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "test": "node test/smoke.test.js"
+    "test": "node test/smoke.test.js",
+    "test:unit": "node --test test/pipeline.test.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
@@ -14,5 +15,8 @@
     "express": "^4.19.2",
     "express-rate-limit": "^7.3.1",
     "pg": "^8.23.0"
+  },
+  "engines": {
+    "node": ">=18.11"
   }
 }

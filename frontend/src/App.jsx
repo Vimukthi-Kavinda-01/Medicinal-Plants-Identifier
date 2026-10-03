@@ -18,9 +18,14 @@ import About from './components/About';
 import Footer from './components/Footer';
 import Toast from './components/Toast';
 import Profile from './components/Profile';
+import Top3Predictions from './components/Top3Predictions';
+import VerificationQuestions from './components/VerificationQuestions';
+import VerificationSummary from './components/VerificationSummary';
+import SimilarPlants from './components/SimilarPlants';
+import WarningBanner from './components/WarningBanner';
 
 import { useCamera } from './hooks/useCamera';
-import { useDetection } from './hooks/useDetection';
+import { useIdentification } from './hooks/useIdentification';
 import { usePlantDescription } from './hooks/usePlantDescription';
 import { checkBackendHealth, recordScan } from './lib/api';
 import { formatPlantName } from './lib/plantKnowledge';
@@ -37,7 +42,7 @@ export default function App() {
   });
 
   const camera = useCamera();
-  const detection = useDetection();
+  const identification = useIdentification();
   const plantDescription = usePlantDescription();
 
   // Show a floating toast message
@@ -62,16 +67,16 @@ export default function App() {
   // Handle image selected from gallery or drag-drop
   const handleImageSelected = useCallback((dataUrl) => {
     setImagePreview(dataUrl);
-    detection.reset();
+    identification.reset();
     plantDescription.reset();
-  }, [detection, plantDescription]);
+  }, [identification, plantDescription]);
 
   // Clear current image and reset results
   const handleClearImage = useCallback(() => {
     setImagePreview(null);
-    detection.reset();
+    identification.reset();
     plantDescription.reset();
-  }, [detection, plantDescription]);
+  }, [identification, plantDescription]);
 
   // Open camera viewfinder
   const handleOpenCamera = useCallback(async () => {
@@ -87,46 +92,66 @@ export default function App() {
     try {
       const capturedDataUrl = camera.capture();
       setImagePreview(capturedDataUrl);
-      detection.reset();
+      identification.reset();
       plantDescription.reset();
       showToast('Photo captured successfully!', 'success');
     } catch (err) {
       showToast(err.message, 'error');
     }
-  }, [camera, detection, plantDescription, showToast]);
+  }, [camera, identification, plantDescription, showToast]);
 
-  // Run AI identification
+  // A final result is ready (steps 7–9): fetch the AI description, then save the scan.
+  const finalizeResult = useCallback(
+    async (result) => {
+      if (!result?.top) return;
+
+      // plantDescription.run never throws; it resolves to the text, or null on failure
+      const description = await plantDescription.run(formatPlantName(result.top.class));
+
+      // Persist scan history asynchronously; a failure must not affect the result screen
+      const activeUserId = localStorage.getItem('herbsense_user_id') || null;
+      try {
+        await recordScan({
+          detectedClass: result.top.class,
+          confidence: result.top.confidence,
+          predictionsPayload: result.ranked,
+          description: description || null,
+          imageUrl: null,
+          userId: activeUserId,
+        });
+      } catch {
+        // already logged inside recordScan
+      }
+    },
+    [plantDescription]
+  );
+
+  // Steps 4–5: identify, then either show the result or ask the feature questions
   const handleRunDetection = useCallback(async () => {
     if (!imagePreview) {
       showToast('Please upload an image or capture a photo first.', 'info');
       return;
     }
 
-    try {
-      const results = await detection.run(imagePreview);
-      if (results?.[0]) {
-        let desc = null;
-        try {
-          desc = await plantDescription.run(formatPlantName(results[0].class));
-        } catch {
-          // Description generation error does not stop detection
-        }
+    plantDescription.reset();
+    const result = await identification.run(imagePreview); // null when questions are needed
+    finalizeResult(result);
+  }, [imagePreview, identification, plantDescription, finalizeResult, showToast]);
 
-        // Persist scan history to PostgreSQL database asynchronously
-        const activeUserId = localStorage.getItem('herbsense_user_id') || null;
-        recordScan({
-          detectedClass: results[0].class,
-          confidence: results[0].confidence,
-          predictionsPayload: results,
-          description: desc || null,
-          imageUrl: null,
-          userId: activeUserId,
-        });
-      }
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
-  }, [imagePreview, detection, plantDescription, showToast]);
+  // Steps 6–9: verify with the answers (empty answers = skip the questions)
+  const handleSubmitAnswers = useCallback(
+    async (answers) => {
+      const result = await identification.submitAnswers(answers);
+      finalizeResult(result);
+    },
+    [identification, finalizeResult]
+  );
+
+  // Retry only the AI description (no new scan is recorded)
+  const handleRetryDescription = useCallback(() => {
+    const top = identification.result?.top;
+    if (top) plantDescription.run(formatPlantName(top.class));
+  }, [identification.result, plantDescription]);
 
   return (
     <div className="min-h-screen flex flex-col bg-herb-50 font-sans text-gray-800">
@@ -246,10 +271,10 @@ export default function App() {
           <button
             type="button"
             onClick={handleRunDetection}
-            disabled={!imagePreview || detection.isLoading}
+            disabled={!imagePreview || identification.isBusy}
             className="w-full flex items-center justify-center gap-2.5 py-4 px-6 rounded-2xl bg-herb-700 hover:bg-herb-800 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-bold text-base shadow-lg shadow-herb-900/15 transition-all active:scale-[0.99]"
           >
-            {detection.isLoading ? (
+            {identification.isAnalyzing ? (
               <>
                 <CircleNotch size={22} className="animate-spin" />
                 <span>Analyzing Plant with Roboflow AI...</span>
@@ -263,13 +288,13 @@ export default function App() {
           </button>
 
           {/* Error Message Display */}
-          {detection.isError && (
+          {identification.status === 'error' && (
             <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-800 text-xs sm:text-sm space-y-2 animate-fade-in">
               <div className="font-bold flex items-center gap-1.5 text-red-900">
                 <Warning size={18} weight="fill" className="text-red-600" />
                 <span>Identification Error</span>
               </div>
-              <p className="leading-relaxed">{detection.error}</p>
+              <p className="leading-relaxed">{identification.error}</p>
               <button
                 type="button"
                 onClick={handleRunDetection}
@@ -281,20 +306,45 @@ export default function App() {
           )}
         </div>
 
-        {/* Results Panel */}
-        {detection.isSuccess && (
+        {/* Steps 4–6: top-3 predictions and rule-based questions (low / medium confidence) */}
+        {(identification.status === 'verifying' || identification.status === 'submitting') && (
+          <div className="mt-8 space-y-4 animate-slide-up">
+            <Top3Predictions predictions={identification.top3} level={identification.level} />
+            <VerificationQuestions
+              questions={identification.questions}
+              level={identification.level}
+              isSubmitting={identification.isSubmitting}
+              error={identification.error}
+              onSubmit={handleSubmitAnswers}
+              onSkip={() => handleSubmitAnswers({})}
+            />
+          </div>
+        )}
+
+        {/* No plant found */}
+        {identification.status === 'none' && (
+          <ResultsPanel predictions={[]} imagePreview={imagePreview} onReset={handleClearImage} />
+        )}
+
+        {/* Steps 7–9: final result with herbarium info, similar plants and warning */}
+        {identification.status === 'final' && identification.result && (
           <ResultsPanel
-            predictions={detection.predictions}
+            predictions={identification.result.ranked}
+            plantInfo={identification.result.info}
             imagePreview={imagePreview}
             description={plantDescription.description}
             descriptionStatus={plantDescription.status}
             descriptionError={plantDescription.error}
-            onRetryDescription={() => {
-              const topPrediction = detection.predictions[0];
-              if (topPrediction) plantDescription.run(formatPlantName(topPrediction.class));
-            }}
+            onRetryDescription={handleRetryDescription}
             onReset={handleClearImage}
-          />
+          >
+            <VerificationSummary
+              verification={identification.result.verification}
+              ranked={identification.result.ranked}
+            />
+            <SimilarPlants plants={identification.result.similar} />
+            <WarningBanner warning={identification.result.warning} />
+          </ResultsPanel>
         )}
 
         {/* Educational Content Sections */}
@@ -321,4 +371,3 @@ export default function App() {
     </div>
   );
 }
-
