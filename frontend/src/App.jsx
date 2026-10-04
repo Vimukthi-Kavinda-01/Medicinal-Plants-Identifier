@@ -20,6 +20,7 @@ import Footer from './components/Footer';
 import Toast from './components/Toast';
 import AuthModal from './components/AuthModal';
 import ScanHistory from './components/ScanHistory';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 import { useCamera } from './hooks/useCamera';
 import { useDetection } from './hooks/useDetection';
@@ -109,24 +110,34 @@ function AppInner() {
     }
 
     try {
-      const results = await detection.run(imagePreview);
-      if (results?.[0]) {
-        let desc = null;
+      const rawResults = await detection.run(imagePreview);
+      const results = Array.isArray(rawResults)
+        ? rawResults
+        : (rawResults?.predictions && Array.isArray(rawResults.predictions) ? rawResults.predictions : []);
+
+      if (results && results.length > 0 && results[0]) {
+        const top = results[0];
+        let descText = null;
         try {
-          desc = await plantDescription.run(formatPlantName(results[0].class));
+          const descResult = await plantDescription.run(formatPlantName(top.class));
+          descText = typeof descResult === 'string' ? descResult : (descResult?.description || null);
         } catch {
           // Description generation error does not stop detection
         }
 
         // Persist scan history to PostgreSQL database asynchronously
-        recordScan({
-          detectedClass: results[0].class,
-          confidence: results[0].confidence,
-          predictionsPayload: results,
-          description: desc || null,
-          imageUrl: null,
-          userId: user?.id || null,
-        });
+        try {
+          recordScan({
+            detectedClass: top.class,
+            confidence: top.confidence,
+            predictionsPayload: results,
+            description: descText,
+            imageUrl: null,
+            userId: user?.id || null,
+          });
+        } catch (e) {
+          console.warn('[App] Failed to save scan record:', e);
+        }
 
         // Refresh scan history panel for logged-in users
         setScanHistoryKey((k) => k + 1);
@@ -287,18 +298,23 @@ function AppInner() {
 
         {/* Results Panel */}
         {detection.isSuccess && (
-          <ResultsPanel
-            predictions={detection.predictions}
-            imagePreview={imagePreview}
-            description={plantDescription.description}
-            descriptionStatus={plantDescription.status}
-            descriptionError={plantDescription.error}
-            onRetryDescription={() => {
-              const topPrediction = detection.predictions[0];
-              if (topPrediction) plantDescription.run(formatPlantName(topPrediction.class));
-            }}
-            onReset={handleClearImage}
-          />
+          <ErrorBoundary>
+            <ResultsPanel
+              predictions={detection.predictions}
+              imagePreview={imagePreview}
+              description={plantDescription.description}
+              descriptionStatus={plantDescription.status}
+              descriptionError={plantDescription.error}
+              onRetryDescription={() => {
+                const preds = Array.isArray(detection.predictions)
+                  ? detection.predictions
+                  : (detection.predictions?.predictions || []);
+                const topPrediction = preds[0];
+                if (topPrediction?.class) plantDescription.run(formatPlantName(topPrediction.class));
+              }}
+              onReset={handleClearImage}
+            />
+          </ErrorBoundary>
         )}
 
         {/* Scan History (logged-in users only) */}
@@ -330,11 +346,13 @@ function AppInner() {
   );
 }
 
-// ── Root export — wraps everything in AuthProvider ────────────────────────────
+// ── Root export — wraps everything in AuthProvider and ErrorBoundary ─────────
 export default function App() {
   return (
-    <AuthProvider>
-      <AppInner />
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <AppInner />
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }

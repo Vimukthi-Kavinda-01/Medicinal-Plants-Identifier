@@ -98,7 +98,9 @@ function ScanCard({ scan }) {
         <div className="px-4 pb-4">
           <div className="rounded-xl bg-herb-50 border border-herb-100 p-3 text-xs text-herb-900 leading-relaxed">
             {scan.description
-              ? scan.description
+              ? (typeof scan.description === 'string'
+                  ? scan.description
+                  : (scan.description?.description || JSON.stringify(scan.description)))
               : <span className="italic text-herb-600">No description available</span>
             }
           </div>

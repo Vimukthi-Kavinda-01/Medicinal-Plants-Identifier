@@ -25,7 +25,11 @@ export default function ResultsPanel({
   const [isSaved, setIsSaved] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
 
-  if (!predictions || predictions.length === 0) {
+  const preds = Array.isArray(predictions)
+    ? predictions
+    : (predictions?.predictions && Array.isArray(predictions.predictions) ? predictions.predictions : []);
+
+  if (!preds || preds.length === 0) {
     return (
       <div className="mt-8 bg-white rounded-3xl p-6 sm:p-8 shadow-card border border-herb-100 text-center animate-slide-up">
         <div className="w-16 h-16 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-3">
@@ -53,11 +57,11 @@ export default function ResultsPanel({
     );
   }
 
-  const topPrediction = predictions[0];
-  const topConfidencePct = Math.round(topPrediction.confidence * 100);
-  const formattedTopName = formatPlantName(topPrediction.class);
-  const topPlantInfo = getPlantInfo(topPrediction.class);
-  const secondaryPredictions = predictions.slice(1, 5);
+  const topPrediction = preds[0] || {};
+  const topConfidencePct = Math.round((topPrediction.confidence || 0) * 100);
+  const formattedTopName = formatPlantName(topPrediction.class || 'Unknown plant');
+  const topPlantInfo = getPlantInfo(topPrediction.class || '');
+  const secondaryPredictions = preds.slice(1, 5);
 
   const handleSavePlant = async () => {
     if (isSaving || isSaved) return;
@@ -276,7 +280,9 @@ export default function ResultsPanel({
 
         {descriptionStatus === 'success' && (
           <p className="text-sm leading-7 text-herb-900/80">
-            {description}
+            {typeof description === 'string'
+              ? description
+              : (description?.description || JSON.stringify(description))}
           </p>
         )}
 

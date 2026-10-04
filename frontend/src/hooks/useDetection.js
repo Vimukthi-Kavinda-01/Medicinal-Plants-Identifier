@@ -18,13 +18,15 @@ export function useDetection() {
 
     try {
       const results = await detectMedicinalPlant(imageData);
-      setPredictions(results);
+      const preds = Array.isArray(results) ? results : (results?.predictions || []);
+      setPredictions(preds);
       setStatus('success');
-      return results;
+      return preds;
     } catch (err) {
       console.error('[Detection Hook Error]:', err);
       setError(err.message || 'Detection failed. Please try again.');
       setStatus('error');
+      return [];
     }
   }, []);
 

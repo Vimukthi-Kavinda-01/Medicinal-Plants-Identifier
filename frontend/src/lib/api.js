@@ -52,8 +52,16 @@ export async function detectMedicinalPlant(imageData) {
     throw new Error(data.error || 'Plant identification failed.');
   }
 
-  return data;
+  // Ensure an array of predictions is returned
+  if (Array.isArray(data.predictions)) {
+    return data.predictions;
+  }
+  if (Array.isArray(data)) {
+    return data;
+  }
+  return [];
 }
+
 export async function describePlant(plantName) {
   if (!plantName) {
     throw new Error('Plant name is required.');
@@ -77,7 +85,14 @@ export async function describePlant(plantName) {
     );
   }
 
-  return data;
+  // Ensure a string is returned
+  if (typeof data.description === 'string') {
+    return data.description;
+  }
+  if (typeof data === 'string') {
+    return data;
+  }
+  return data.description || '';
 }
 
 /* =========================================================

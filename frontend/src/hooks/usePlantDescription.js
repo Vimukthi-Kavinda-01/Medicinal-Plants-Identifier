@@ -18,10 +18,11 @@ export function usePlantDescription() {
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const result = await describePlant(plantName);
-        setDescription(result);
+        const text = typeof result === 'string' ? result : (result?.description || '');
+        setDescription(text);
         setStatus('success');
         setError(null);
-        return result;
+        return text;
       } catch (err) {
         const isCapacity = /capacity|busy|overloaded|limit reached|503/i.test(err.message || '');
         if (isCapacity && attempt === 0) {
