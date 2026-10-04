@@ -97,25 +97,14 @@ Medicinal Plants Identifier/
 
 ---
 
-## 🚀 Step-by-Step Run Guide
+## 🚀 Quick Start (Zero Setup Required)
+
+Everything is pre-configured out of the box, including the hosted **Supabase Cloud Database**, Roboflow AI workflow, and plain-language botanical description service.
 
 **Requirements:** Node.js 18.11 or newer.
 
-### Step 1: Add Your API Keys
-Copy `backend/.env.example` to `backend/.env` and fill in your keys:
-```env
-ROBOFLOW_API_KEY=your_private_roboflow_key
-DESCRIPTION_API_KEY=your_description_model_key
-DESCRIPTION_API_URL=https://api.openai.com/v1/chat/completions
-DESCRIPTION_MODEL=gpt-4o-mini
-PORT=3001
-FRONTEND_URL=http://localhost:5173
-```
-
-The description request uses the OpenAI-compatible Chat Completions format. OpenAI works with the defaults above; other compatible providers only need their endpoint and model name changed. Keep all keys in `backend/.env` only, and never commit that file.
-
-### Step 2: Install and Start the Backend
-Open a terminal in the root directory:
+### Step 1: Start the Backend Server
+Open a terminal in the project directory:
 ```bash
 cd backend
 npm install
@@ -123,12 +112,14 @@ npm run dev
 ```
 You will see:
 ```
+===============================================
 🌿 HerbSense Backend running on http://localhost:3001
 🔑 Roboflow API key is loaded.
+===============================================
 ```
 
-### Step 3: Install and Start the Frontend
-Open a second terminal:
+### Step 2: Start the Frontend Application
+Open a second terminal in the project directory:
 ```bash
 cd frontend
 npm install
@@ -136,11 +127,18 @@ npm run dev
 ```
 You will see:
 ```
-  VITE v5.3.4  ready in 250 ms
+  VITE v5.4.x  ready in ... ms
 
   ➜  Local:   http://localhost:5173/
 ```
-Keep **both** terminals open while you use the app.
+Keep **both** terminals open while you use the application.
+
+### Step 3: Open in Browser
+Open **http://localhost:5173** in your web browser. You can immediately:
+- Scan or upload any plant photo (guest mode or signed in).
+- Sign in or create an account with email or username to save scans and bookmark plants.
+- View your persistent scan history and expand each card to read the AI botanical description.
+- Review guided identification verification questions when confidence needs confirmation.
 
 ### Step 4: Open and Test
 1. Open **http://localhost:5173** in your browser.
