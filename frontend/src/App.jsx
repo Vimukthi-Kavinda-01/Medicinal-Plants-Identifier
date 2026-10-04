@@ -8,6 +8,7 @@ import {
   Warning,
 } from '@phosphor-icons/react';
 
+import { AuthProvider, useAuth } from './context/AuthContext';
 import Header from './components/Header';
 import Hero from './components/Hero';
 import ImageUploadZone from './components/ImageUploadZone';
@@ -17,7 +18,8 @@ import HowItWorks from './components/HowItWorks';
 import About from './components/About';
 import Footer from './components/Footer';
 import Toast from './components/Toast';
-import Profile from './components/Profile';
+import AuthModal from './components/AuthModal';
+import ScanHistory from './components/ScanHistory';
 
 import { useCamera } from './hooks/useCamera';
 import { useDetection } from './hooks/useDetection';
@@ -25,10 +27,14 @@ import { usePlantDescription } from './hooks/usePlantDescription';
 import { checkBackendHealth, recordScan } from './lib/api';
 import { formatPlantName } from './lib/plantKnowledge';
 
-export default function App() {
+// ── Inner app (has access to AuthContext) ─────────────────────────────────────
+function AppInner() {
+  const { user } = useAuth();
+
   const [imagePreview, setImagePreview] = useState(null);
   const [toast, setToast] = useState(null);
-  const [showProfile, setShowProfile] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [scanHistoryKey, setScanHistoryKey] = useState(0);
   const [backendStatus, setBackendStatus] = useState({
     checked: false,
     online: false,
@@ -113,31 +119,29 @@ export default function App() {
         }
 
         // Persist scan history to PostgreSQL database asynchronously
-        const activeUserId = localStorage.getItem('herbsense_user_id') || null;
         recordScan({
           detectedClass: results[0].class,
           confidence: results[0].confidence,
           predictionsPayload: results,
           description: desc || null,
           imageUrl: null,
-          userId: activeUserId,
+          userId: user?.id || null,
         });
+
+        // Refresh scan history panel for logged-in users
+        setScanHistoryKey((k) => k + 1);
       }
     } catch (err) {
       showToast(err.message, 'error');
     }
-  }, [imagePreview, detection, plantDescription, showToast]);
+  }, [imagePreview, detection, plantDescription, showToast, user]);
 
   return (
     <div className="min-h-screen flex flex-col bg-herb-50 font-sans text-gray-800">
-      {showProfile ? (
-        <Profile onBack={() => setShowProfile(false)} />
-      ) : (
-        <>
       {/* Top Navbar */}
       <Header
-          backendConfigured={backendStatus.roboflowConfigured}
-          onProfileClick={() => setShowProfile(true)}
+        backendConfigured={backendStatus.roboflowConfigured}
+        onSignInClick={() => setShowAuthModal(true)}
       />
 
       {/* Hero Banner */}
@@ -297,6 +301,9 @@ export default function App() {
           />
         )}
 
+        {/* Scan History (logged-in users only) */}
+        {user && <ScanHistory key={scanHistoryKey} />}
+
         {/* Educational Content Sections */}
         <HowItWorks />
         <About />
@@ -314,11 +321,20 @@ export default function App() {
         error={camera.error}
       />
 
+      {/* Auth Modal */}
+      <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
+
       {/* Toast Notification */}
       <Toast toast={toast} onClose={() => setToast(null)} />
-        </>
-      )}
     </div>
   );
 }
 
+// ── Root export — wraps everything in AuthProvider ────────────────────────────
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppInner />
+    </AuthProvider>
+  );
+}

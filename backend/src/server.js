@@ -6,6 +6,7 @@ const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const detectRoutes = require('./routes/detect');
 const describeRoutes = require('./routes/describe');
+const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const plantRoutes = require('./routes/plants');
 const scanRoutes = require('./routes/scans');
@@ -44,11 +45,11 @@ app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 // ── Rate Limiting (prevent abuse of inference credits) ────────────────────────
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 30, // 30 requests per minute per IP
+  max: 60, // 60 requests per minute per IP (increased for auth calls)
   standardHeaders: true,
   legacyHeaders: false,
   message: {
-    error: 'Rate limit exceeded. Please wait a moment before sending another plant scan.',
+    error: 'Rate limit exceeded. Please wait a moment before sending another request.',
   },
 });
 app.use('/api/', apiLimiter);
@@ -66,7 +67,7 @@ app.get('/api/health', async (_req, res) => {
     if (dbCheck.connected) {
       databaseDetails = { database: dbCheck.database };
     }
-  } catch (err) {
+  } catch {
     databaseConnected = false;
   }
 
@@ -84,10 +85,11 @@ app.get('/api/health', async (_req, res) => {
 // ── Routes ───────────────────────────────────────────────────────────────────
 app.use('/api', detectRoutes);
 app.use('/api', describeRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api', plantRoutes);
-app.use('/api', scanRoutes);
-app.use('/api', savedPlantRoutes);
+app.use('/api/auth', authRoutes);        // POST /api/auth/register, /login, GET /api/auth/me
+app.use('/api/users', userRoutes);       // GET/PUT /api/users/profile
+app.use('/api', plantRoutes);            // GET /api/plants, /api/plants/:slug
+app.use('/api', scanRoutes);             // POST /api/scans, GET /api/scans/my, GET /api/scans
+app.use('/api', savedPlantRoutes);       // /api/saved-plants
 
 // ── 404 Handler ──────────────────────────────────────────────────────────────
 app.use((_req, res) => {
@@ -106,10 +108,11 @@ app.listen(PORT, () => {
   console.log(`🌿 HerbSense Backend running on http://localhost:${PORT}`);
   if (!process.env.ROBOFLOW_API_KEY || !process.env.ROBOFLOW_API_KEY.trim()) {
     console.warn(`⚠️  WARNING: ROBOFLOW_API_KEY is not set in backend/.env`);
-    console.warn(`   Inference calls will return an error until you add your key.`);
   } else {
     console.log(`🔑 Roboflow API key is loaded.`);
   }
+  if (!process.env.JWT_SECRET) {
+    console.warn(`⚠️  WARNING: JWT_SECRET not set. Using insecure default. Set it in backend/.env`);
+  }
   console.log(`===============================================`);
 });
-

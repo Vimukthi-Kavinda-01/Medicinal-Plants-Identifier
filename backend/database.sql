@@ -1,19 +1,17 @@
 -- ============================================================================
 -- HerbSense: Medicinal Plants Identifier - Database Setup Script
--- Target Database: PostgreSQL 13+ (compatible with pgAdmin 4)
+-- Target Database: PostgreSQL 13+ (Supabase / local)
+-- Run this entire script in pgAdmin or psql to recreate the schema.
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
 -- 1. Enable Required Extensions
 -- ----------------------------------------------------------------------------
--- "pgcrypto" provides cryptographic functions including gen_random_uuid().
--- PostgreSQL 13+ has gen_random_uuid() built-in, but this ensures compatibility.
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- ----------------------------------------------------------------------------
 -- 2. Drop Tables (if recreating the schema in development)
 -- ----------------------------------------------------------------------------
--- Drop in reverse dependency order (child tables first, parent tables last)
 DROP TABLE IF EXISTS saved_plants CASCADE;
 DROP TABLE IF EXISTS plant_scans CASCADE;
 DROP TABLE IF EXISTS plants CASCADE;
@@ -22,12 +20,11 @@ DROP TABLE IF EXISTS users CASCADE;
 -- ----------------------------------------------------------------------------
 -- 3. Table: users
 -- ----------------------------------------------------------------------------
--- Stores user profile data created via the HerbSense Profile page.
--- Currently operates without mandatory authentication/passwords.
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     username VARCHAR(50) NOT NULL,
     email VARCHAR(255) NOT NULL,
+    password_hash TEXT NOT NULL,          -- bcrypt hash of the user's password
     full_name VARCHAR(100),
     location VARCHAR(100),
     bio TEXT,
@@ -35,19 +32,16 @@ CREATE TABLE users (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    -- Constraints
     CONSTRAINT uq_users_username UNIQUE (username),
     CONSTRAINT uq_users_email UNIQUE (email)
 );
 
--- Index on username for fast profile lookup
 CREATE INDEX idx_users_username ON users (LOWER(username));
+CREATE INDEX idx_users_email    ON users (LOWER(email));
 
 -- ----------------------------------------------------------------------------
 -- 4. Table: plants
 -- ----------------------------------------------------------------------------
--- Master botanical knowledge base storing therapeutic and medicinal data.
--- Initial records are seeded from plantKnowledge.js.
 CREATE TABLE plants (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     slug VARCHAR(100) NOT NULL,
@@ -60,18 +54,14 @@ CREATE TABLE plants (
     precautions TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    -- Constraints
     CONSTRAINT uq_plants_slug UNIQUE (slug)
 );
 
--- Index on slug for fast botanical lookups (e.g. /api/plants/aloe-vera)
 CREATE INDEX idx_plants_slug ON plants (LOWER(slug));
 
 -- ----------------------------------------------------------------------------
 -- 5. Table: plant_scans
 -- ----------------------------------------------------------------------------
--- Stores records of AI identification scans performed via Roboflow YOLO11n.
--- user_id is NULLABLE so guest scans are captured without requiring a profile.
 CREATE TABLE plant_scans (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID,
@@ -79,31 +69,21 @@ CREATE TABLE plant_scans (
     detected_class VARCHAR(100) NOT NULL,
     confidence NUMERIC(5, 4),
     predictions_payload JSONB DEFAULT '[]'::jsonb,
-    description TEXT,
+    description TEXT,                     -- AI-generated description stored here
     image_url TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    -- Foreign Keys with ON DELETE SET NULL to preserve scan history
-    CONSTRAINT fk_scans_user
-        FOREIGN KEY (user_id)
-        REFERENCES users (id)
-        ON DELETE SET NULL,
-
-    CONSTRAINT fk_scans_plant
-        FOREIGN KEY (plant_id)
-        REFERENCES plants (id)
-        ON DELETE SET NULL
+    CONSTRAINT fk_scans_user  FOREIGN KEY (user_id)  REFERENCES users  (id) ON DELETE SET NULL,
+    CONSTRAINT fk_scans_plant FOREIGN KEY (plant_id) REFERENCES plants (id) ON DELETE SET NULL
 );
 
--- Indexes for querying scan history
-CREATE INDEX idx_scans_user_id ON plant_scans (user_id);
-CREATE INDEX idx_scans_plant_id ON plant_scans (plant_id);
+CREATE INDEX idx_scans_user_id    ON plant_scans (user_id);
+CREATE INDEX idx_scans_plant_id   ON plant_scans (plant_id);
 CREATE INDEX idx_scans_created_at ON plant_scans (created_at DESC);
 
 -- ----------------------------------------------------------------------------
 -- 6. Table: saved_plants
 -- ----------------------------------------------------------------------------
--- Allows registered users to bookmark plants to their personal collection.
 CREATE TABLE saved_plants (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL,
@@ -111,20 +91,9 @@ CREATE TABLE saved_plants (
     user_notes TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    -- Foreign Keys: Cascade deletion if user or plant is removed
-    CONSTRAINT fk_saved_user
-        FOREIGN KEY (user_id)
-        REFERENCES users (id)
-        ON DELETE CASCADE,
-
-    CONSTRAINT fk_saved_plant
-        FOREIGN KEY (plant_id)
-        REFERENCES plants (id)
-        ON DELETE CASCADE,
-
-    -- Prevent a user from saving the exact same plant multiple times
+    CONSTRAINT fk_saved_user  FOREIGN KEY (user_id)  REFERENCES users  (id) ON DELETE CASCADE,
+    CONSTRAINT fk_saved_plant FOREIGN KEY (plant_id) REFERENCES plants (id) ON DELETE CASCADE,
     CONSTRAINT uq_saved_plants_user_plant UNIQUE (user_id, plant_id)
 );
 
--- Index for fetching a user's saved plants quickly
 CREATE INDEX idx_saved_plants_user_id ON saved_plants (user_id);
