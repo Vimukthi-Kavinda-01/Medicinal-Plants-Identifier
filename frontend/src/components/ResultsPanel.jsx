@@ -21,6 +21,8 @@ export default function ResultsPanel({
   descriptionError,
   onRetryDescription,
   onReset,
+  plantInfo, // digital-herbarium record from the backend (optional)
+  children, // extra sections: verification summary, similar plants, warning
 }) {
   const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
@@ -61,7 +63,8 @@ export default function ResultsPanel({
   const topPrediction = preds[0] || {};
   const topConfidencePct = Math.round((topPrediction.confidence || 0) * 100);
   const formattedTopName = formatPlantName(topPrediction.class || 'Unknown plant');
-  const topPlantInfo = getPlantInfo(topPrediction.class || '');
+  // Prefer the digital-herbarium record; fall back to the bundled knowledge base.
+  const topPlantInfo = plantInfo ?? getPlantInfo(topPrediction.class || '');
   const secondaryPredictions = preds.slice(1, 5);
 
   const { user } = useAuth();
@@ -301,21 +304,21 @@ export default function ResultsPanel({
         )}
       </section>
 
-      {/* Secondary Candidates List */}
+      {/* Secondary Candidates List (the other two of the top 3) */}
       {secondaryPredictions.length > 0 && (
         <div className="space-y-3 pt-2">
           <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400">
-            Other Potential Candidates
+            Other Top-3 Candidates
           </h4>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            {secondaryPredictions.map((cand, idx) => {
+            {secondaryPredictions.map((cand) => {
               const candPct = Math.round(cand.confidence * 100);
               const candBadge = getConfidenceBadge(candPct);
 
               return (
                 <div
-                  key={idx}
+                  key={cand.class}
                   className="rounded-xl p-3 bg-gray-50 border border-gray-100 flex items-center justify-between"
                 >
                   <div className="space-y-1">
@@ -346,6 +349,9 @@ export default function ResultsPanel({
         plantInfo={topPlantInfo}
         plantName={formattedTopName}
       />
+
+      {/* Extra sections: verification summary, similar plants, warning */}
+      {children}
     </div>
   );
 }

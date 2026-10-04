@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "test": "node test/smoke.test.js"
+    "test": "node test/smoke.test.js",
+    "test:unit": "node --test test/pipeline.test.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
@@ -16,5 +17,8 @@
     "express-rate-limit": "^7.3.1",
     "jsonwebtoken": "^9.0.3",
     "pg": "^8.23.0"
+  },
+  "engines": {
+    "node": ">=18.11"
   }
 }

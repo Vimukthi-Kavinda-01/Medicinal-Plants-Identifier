@@ -1,11 +1,15 @@
 'use strict';
 
 require('dotenv').config();
+const fs = require('fs');
+const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const detectRoutes = require('./routes/detect');
 const describeRoutes = require('./routes/describe');
+const identifyRoutes = require('./routes/identify');
+const herbariumRoutes = require('./routes/herbarium');
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const plantRoutes = require('./routes/plants');
@@ -17,23 +21,27 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // ── CORS Configuration ────────────────────────────────────────────────────────
-const allowedOrigins = [
-  process.env.FRONTEND_URL || 'http://localhost:5173',
-  'http://localhost:5173',
-  'http://localhost:3000',
-  'http://localhost:4173', // Vite preview port
-];
+// Any localhost / 127.0.0.1 port is allowed so it keeps working when Vite picks
+// another port (5174, 5175, ...). Set FRONTEND_URL in backend/.env for production
+// (several URLs can be separated by commas).
+const LOCAL_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+const extraOrigins = (process.env.FRONTEND_URL || '')
+  .split(',')
+  .map((url) => url.trim().replace(/\/$/, ''))
+  .filter(Boolean);
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow non-browser requests (e.g. mobile apps, curl, server-to-server) or listed origins
-      if (!origin || allowedOrigins.includes(origin)) {
+      // Allow non-browser requests (curl, server-to-server), local dev origins, or FRONTEND_URL
+      if (!origin || LOCAL_ORIGIN.test(origin) || extraOrigins.includes(origin)) {
         return callback(null, true);
       }
-      return callback(new Error(`CORS blocked for origin: ${origin}`));
+      const corsError = new Error(`CORS blocked for origin: ${origin}`);
+      corsError.status = 403;
+      return callback(corsError);
     },
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   })
 );
@@ -85,6 +93,8 @@ app.get('/api/health', async (_req, res) => {
 // ── Routes ───────────────────────────────────────────────────────────────────
 app.use('/api', detectRoutes);
 app.use('/api', describeRoutes);
+app.use('/api', identifyRoutes);
+app.use('/api', herbariumRoutes);
 app.use('/api/auth', authRoutes);        // POST /api/auth/register, /login, GET /api/auth/me
 app.use('/api/users', userRoutes);       // GET/PUT /api/users/profile
 app.use('/api', plantRoutes);            // GET /api/plants, /api/plants/:slug
@@ -99,20 +109,27 @@ app.use((_req, res) => {
 // ── Error Handler ────────────────────────────────────────────────────────────
 app.use((err, _req, res, _next) => {
   console.error('[HerbSense Server Error]:', err.message);
-  res.status(500).json({ error: err.message || 'Internal Server Error' });
+  const status = err.type === 'entity.too.large' ? 413 : err.status || 500;
+  const message =
+    status === 413 ? 'The uploaded image is too large. Please use a smaller photo.' : err.message || 'Internal Server Error';
+  res.status(status).json({ error: message });
 });
 
 // ── Start Server ─────────────────────────────────────────────────────────────
-app.listen(PORT, () => {
-  console.log(`===============================================`);
-  console.log(`🌿 HerbSense Backend running on http://localhost:${PORT}`);
-  if (!process.env.ROBOFLOW_API_KEY || !process.env.ROBOFLOW_API_KEY.trim()) {
-    console.warn(`⚠️  WARNING: ROBOFLOW_API_KEY is not set in backend/.env`);
-  } else {
-    console.log(`🔑 Roboflow API key is loaded.`);
-  }
-  if (!process.env.JWT_SECRET) {
-    console.warn(`⚠️  WARNING: JWT_SECRET not set. Using insecure default. Set it in backend/.env`);
-  }
-  console.log(`===============================================`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`===============================================`);
+    console.log(`🌿 HerbSense Backend running on http://localhost:${PORT}`);
+    if (!process.env.ROBOFLOW_API_KEY || !process.env.ROBOFLOW_API_KEY.trim()) {
+      console.warn(`⚠️  WARNING: ROBOFLOW_API_KEY is not set in backend/.env`);
+    } else {
+      console.log(`🔑 Roboflow API key is loaded.`);
+    }
+    if (!process.env.JWT_SECRET) {
+      console.warn(`⚠️  WARNING: JWT_SECRET not set. Using insecure default. Set it in backend/.env`);
+    }
+    console.log(`===============================================`);
+  });
+}
+
+module.exports = app;

@@ -22,8 +22,14 @@ import AuthModal from './components/AuthModal';
 import ScanHistory from './components/ScanHistory';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
+import Top3Predictions from './components/Top3Predictions';
+import VerificationQuestions from './components/VerificationQuestions';
+import VerificationSummary from './components/VerificationSummary';
+import SimilarPlants from './components/SimilarPlants';
+import WarningBanner from './components/WarningBanner';
+
 import { useCamera } from './hooks/useCamera';
-import { useDetection } from './hooks/useDetection';
+import { useIdentification } from './hooks/useIdentification';
 import { usePlantDescription } from './hooks/usePlantDescription';
 import { checkBackendHealth, recordScan } from './lib/api';
 import { formatPlantName } from './lib/plantKnowledge';
@@ -44,7 +50,7 @@ function AppInner() {
   });
 
   const camera = useCamera();
-  const detection = useDetection();
+  const identification = useIdentification();
   const plantDescription = usePlantDescription();
 
   // Show a floating toast message
@@ -69,16 +75,16 @@ function AppInner() {
   // Handle image selected from gallery or drag-drop
   const handleImageSelected = useCallback((dataUrl) => {
     setImagePreview(dataUrl);
-    detection.reset();
+    identification.reset();
     plantDescription.reset();
-  }, [detection, plantDescription]);
+  }, [identification, plantDescription]);
 
   // Clear current image and reset results
   const handleClearImage = useCallback(() => {
     setImagePreview(null);
-    detection.reset();
+    identification.reset();
     plantDescription.reset();
-  }, [detection, plantDescription]);
+  }, [identification, plantDescription]);
 
   // Open camera viewfinder
   const handleOpenCamera = useCallback(async () => {
@@ -94,58 +100,78 @@ function AppInner() {
     try {
       const capturedDataUrl = camera.capture();
       setImagePreview(capturedDataUrl);
-      detection.reset();
+      identification.reset();
       plantDescription.reset();
       showToast('Photo captured successfully!', 'success');
     } catch (err) {
       showToast(err.message, 'error');
     }
-  }, [camera, detection, plantDescription, showToast]);
+  }, [camera, identification, plantDescription, showToast]);
 
-  // Run AI identification
+  // A final result is ready (steps 7–9): fetch the AI description, then save the scan.
+  const finalizeResult = useCallback(
+    async (result) => {
+      if (!result?.top) return;
+
+      // plantDescription.run resolves to the text, or null on failure
+      const description = await plantDescription.run(formatPlantName(result.top.class));
+
+      // Persist scan history asynchronously
+      try {
+        await recordScan({
+          detectedClass: result.top.class,
+          confidence: result.top.confidence,
+          predictionsPayload: result.ranked,
+          description: description || null,
+          imageUrl: null,
+          userId: user?.id || null,
+        });
+        setScanHistoryKey((k) => k + 1);
+      } catch (err) {
+        console.warn('[App] Failed to save scan record:', err);
+      }
+    },
+    [plantDescription, user]
+  );
+
+  // Steps 4–5: identify, then either show the result or ask the feature questions
   const handleRunDetection = useCallback(async () => {
     if (!imagePreview) {
       showToast('Please upload an image or capture a photo first.', 'info');
       return;
     }
 
+    plantDescription.reset();
     try {
-      const rawResults = await detection.run(imagePreview);
-      const results = Array.isArray(rawResults)
-        ? rawResults
-        : (rawResults?.predictions && Array.isArray(rawResults.predictions) ? rawResults.predictions : []);
-
-      if (results && results.length > 0 && results[0]) {
-        const top = results[0];
-        let descText = null;
-        try {
-          const descResult = await plantDescription.run(formatPlantName(top.class));
-          descText = typeof descResult === 'string' ? descResult : (descResult?.description || null);
-        } catch {
-          // Description generation error does not stop detection
-        }
-
-        // Persist scan history to PostgreSQL database
-        try {
-          await recordScan({
-            detectedClass: top.class,
-            confidence: top.confidence,
-            predictionsPayload: results,
-            description: descText,
-            imageUrl: null,
-            userId: user?.id || null,
-          });
-        } catch (e) {
-          console.warn('[App] Failed to save scan record:', e);
-        }
-
-        // Refresh scan history panel for logged-in users
-        setScanHistoryKey((k) => k + 1);
+      const result = await identification.run(imagePreview); // null when questions are needed
+      if (result) {
+        await finalizeResult(result);
       }
     } catch (err) {
       showToast(err.message, 'error');
     }
-  }, [imagePreview, detection, plantDescription, showToast, user]);
+  }, [imagePreview, identification, plantDescription, finalizeResult, showToast]);
+
+  // Steps 6–9: verify with the answers (empty answers = skip the questions)
+  const handleSubmitAnswers = useCallback(
+    async (answers) => {
+      try {
+        const result = await identification.submitAnswers(answers);
+        if (result) {
+          await finalizeResult(result);
+        }
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    },
+    [identification, finalizeResult, showToast]
+  );
+
+  // Retry only the AI description (no new scan is recorded)
+  const handleRetryDescription = useCallback(() => {
+    const top = identification.result?.top;
+    if (top) plantDescription.run(formatPlantName(top.class));
+  }, [identification.result, plantDescription]);
 
   return (
     <div className="min-h-screen flex flex-col bg-herb-50 font-sans text-gray-800">
@@ -261,10 +287,10 @@ function AppInner() {
           <button
             type="button"
             onClick={handleRunDetection}
-            disabled={!imagePreview || detection.isLoading}
+            disabled={!imagePreview || identification.isBusy}
             className="w-full flex items-center justify-center gap-2.5 py-4 px-6 rounded-2xl bg-herb-700 hover:bg-herb-800 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-bold text-base shadow-lg shadow-herb-900/15 transition-all active:scale-[0.99]"
           >
-            {detection.isLoading ? (
+            {identification.isAnalyzing ? (
               <>
                 <CircleNotch size={22} className="animate-spin" />
                 <span>Analyzing Plant with Roboflow AI...</span>
@@ -278,13 +304,13 @@ function AppInner() {
           </button>
 
           {/* Error Message Display */}
-          {detection.isError && (
+          {identification.status === 'error' && (
             <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-800 text-xs sm:text-sm space-y-2 animate-fade-in">
               <div className="font-bold flex items-center gap-1.5 text-red-900">
                 <Warning size={18} weight="fill" className="text-red-600" />
                 <span>Identification Error</span>
               </div>
-              <p className="leading-relaxed">{detection.error}</p>
+              <p className="leading-relaxed">{identification.error}</p>
               <button
                 type="button"
                 onClick={handleRunDetection}
@@ -296,24 +322,50 @@ function AppInner() {
           )}
         </div>
 
-        {/* Results Panel */}
-        {detection.isSuccess && (
+        {/* Steps 4–6: top-3 predictions and rule-based questions (low / medium confidence) */}
+        {(identification.status === 'verifying' || identification.status === 'submitting') && (
+          <ErrorBoundary>
+            <div className="mt-8 space-y-4 animate-slide-up">
+              <Top3Predictions predictions={identification.top3} level={identification.level} />
+              <VerificationQuestions
+                questions={identification.questions}
+                level={identification.level}
+                isSubmitting={identification.isSubmitting}
+                error={identification.error}
+                onSubmit={handleSubmitAnswers}
+                onSkip={() => handleSubmitAnswers({})}
+              />
+            </div>
+          </ErrorBoundary>
+        )}
+
+        {/* No plant found */}
+        {identification.status === 'none' && (
+          <ErrorBoundary>
+            <ResultsPanel predictions={[]} imagePreview={imagePreview} onReset={handleClearImage} />
+          </ErrorBoundary>
+        )}
+
+        {/* Steps 7–9: final result with herbarium info, similar plants and warning */}
+        {identification.status === 'final' && identification.result && (
           <ErrorBoundary>
             <ResultsPanel
-              predictions={detection.predictions}
+              predictions={identification.result.ranked}
+              plantInfo={identification.result.info}
               imagePreview={imagePreview}
               description={plantDescription.description}
               descriptionStatus={plantDescription.status}
               descriptionError={plantDescription.error}
-              onRetryDescription={() => {
-                const preds = Array.isArray(detection.predictions)
-                  ? detection.predictions
-                  : (detection.predictions?.predictions || []);
-                const topPrediction = preds[0];
-                if (topPrediction?.class) plantDescription.run(formatPlantName(topPrediction.class));
-              }}
+              onRetryDescription={handleRetryDescription}
               onReset={handleClearImage}
-            />
+            >
+              <VerificationSummary
+                verification={identification.result.verification}
+                ranked={identification.result.ranked}
+              />
+              <SimilarPlants plants={identification.result.similar} />
+              <WarningBanner warning={identification.result.warning} />
+            </ResultsPanel>
           </ErrorBoundary>
         )}
 
