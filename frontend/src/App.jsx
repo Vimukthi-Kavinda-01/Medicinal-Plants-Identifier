@@ -125,9 +125,9 @@ function AppInner() {
           // Description generation error does not stop detection
         }
 
-        // Persist scan history to PostgreSQL database asynchronously
+        // Persist scan history to PostgreSQL database
         try {
-          recordScan({
+          await recordScan({
             detectedClass: top.class,
             confidence: top.confidence,
             predictionsPayload: results,

@@ -9,7 +9,8 @@ import {
   BookmarkSimple,
 } from '@phosphor-icons/react';
 import { formatPlantName, getPlantInfo } from '../lib/plantKnowledge';
-import { getUserProfile, getPlantBySlug, savePlant } from '../lib/api';
+import { getPlantBySlug, savePlant } from '../lib/api';
+import { useAuth } from '../context/AuthContext';
 import PlantInfoCard from './PlantInfoCard';
 
 export default function ResultsPanel({
@@ -63,30 +64,25 @@ export default function ResultsPanel({
   const topPlantInfo = getPlantInfo(topPrediction.class || '');
   const secondaryPredictions = preds.slice(1, 5);
 
+  const { user } = useAuth();
+
   const handleSavePlant = async () => {
     if (isSaving || isSaved) return;
+
+    if (!user?.id) {
+      setSaveMessage('Please sign in to save plants to your collection.');
+      return;
+    }
 
     try {
       setIsSaving(true);
       setSaveMessage('');
 
-      const username = localStorage.getItem('herbsense_profile_username');
-
-      if (!username) {
-        throw new Error('Please create a profile before saving plants.');
-      }
-
-      const user = await getUserProfile(username);
-
-      if (!user?.id) {
-        throw new Error('Could not find your profile in the database.');
-      }
-
       const plant = await getPlantBySlug(topPrediction.class);
 
       if (!plant?.id) {
         setSaveMessage(
-          'This plant is identified, but it is not available in the plant database yet.'
+          'This plant is identified, but its botanical profile is being updated in the database.'
         );
         return;
       }
@@ -94,7 +90,7 @@ export default function ResultsPanel({
       await savePlant(user.id, plant.id);
 
       setIsSaved(true);
-      setSaveMessage('Plant saved successfully.');
+      setSaveMessage('Plant saved to your collection!');
     } catch (error) {
       console.error('[HerbSense] Save plant failed:', error);
       setSaveMessage(error.message || 'Could not save this plant.');

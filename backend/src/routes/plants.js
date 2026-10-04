@@ -61,7 +61,9 @@ router.get('/plants/:slug', async (req, res) => {
     }
 
     const cleanSlug = slug.trim().toLowerCase();
-    const cleanSpaceSlug = cleanSlug.replace(/[_-]+/g, ' ');
+    const cleanNoSpecial = cleanSlug.replace(/[^a-z0-9]/g, '');
+    const cleanHyphen = cleanSlug.replace(/[^a-z0-9]+/g, '-');
+    const cleanSpace = cleanSlug.replace(/[^a-z0-9]+/g, ' ');
 
     const result = await db.query(
       `SELECT
@@ -76,11 +78,13 @@ router.get('/plants/:slug', async (req, res) => {
          precautions,
          created_at
        FROM plants
-       WHERE LOWER(slug) = LOWER($1)
-          OR LOWER(slug) = LOWER(REPLACE($2, ' ', '-'))
-          OR LOWER(common_name) = LOWER($2)
+       WHERE LOWER(slug) = $1
+          OR LOWER(slug) = $2
+          OR LOWER(REPLACE(slug, '-', '')) = $3
+          OR LOWER(common_name) = $4
+          OR LOWER(REPLACE(common_name, ' ', '')) = $3
        LIMIT 1;`,
-      [cleanSlug, cleanSpaceSlug]
+      [cleanHyphen, cleanSlug, cleanNoSpecial, cleanSpace]
     );
 
     if (result.rows.length === 0) {

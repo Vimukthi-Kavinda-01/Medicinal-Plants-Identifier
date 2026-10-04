@@ -3,25 +3,27 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
+const { optionalAuthenticate } = require('../middleware/authenticate');
 
 /**
  * POST /api/saved-plants
  * Save / bookmark a medicinal plant for a user.
- * Body: { userId, plantId, userNotes }
+ * Body: { userId?, plantId, userNotes? } or Header: Authorization Bearer
  */
-router.post('/saved-plants', async (req, res) => {
+router.post('/saved-plants', optionalAuthenticate, async (req, res) => {
   try {
-    const { userId, plantId, userNotes } = req.body;
+    const rawUserId = req.user?.id || req.body?.userId;
+    const { plantId, userNotes } = req.body;
 
-    if (!userId || typeof userId !== 'string' || !userId.trim()) {
-      return res.status(400).json({ error: 'userId is required to save a plant.' });
+    if (!rawUserId || typeof rawUserId !== 'string' || !rawUserId.trim()) {
+      return res.status(400).json({ error: 'userId or authentication required to save a plant.' });
     }
 
     if (!plantId || typeof plantId !== 'string' || !plantId.trim()) {
       return res.status(400).json({ error: 'plantId is required.' });
     }
 
-    const cleanUserId = userId.trim();
+    const cleanUserId = rawUserId.trim();
     const cleanPlantId = plantId.trim();
     const cleanNotes = typeof userNotes === 'string' ? userNotes.trim() : null;
 

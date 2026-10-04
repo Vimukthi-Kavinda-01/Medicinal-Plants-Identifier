@@ -33,25 +33,46 @@ router.post('/scans', optionalAuthenticate, async (req, res) => {
       ? JSON.stringify(predictionsPayload)
       : JSON.stringify([]);
 
-    // Use authenticated user ID if available
-    const validUserId = req.user?.id || null;
+    // Validate and use authenticated user ID or body userId
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    let validUserId = null;
+    if (req.user?.id && uuidRegex.test(req.user.id)) {
+      validUserId = req.user.id;
+    } else if (req.body?.userId && uuidRegex.test(String(req.body.userId).trim())) {
+      validUserId = String(req.body.userId).trim();
+    }
 
-    // Attempt to match plant_id from plants table by slug or class name
-    const normalizedSlug = cleanClass.toLowerCase().replace(/[_\s]+/g, '-');
+    // Attempt to match plant_id from plants table by slug, common_name, or sanitized label
+    const cleanNoSpecial = cleanClass.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const cleanHyphen = cleanClass.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const cleanSpace = cleanClass.toLowerCase().replace(/[^a-z0-9]+/g, ' ');
+
     const plantMatch = await db.query(
       `SELECT id FROM plants
-       WHERE LOWER(slug) = LOWER($1)
-          OR LOWER(REPLACE(slug, '-', ' ')) = LOWER($2)
+       WHERE LOWER(slug) = $1
+          OR LOWER(slug) = $2
+          OR LOWER(REPLACE(slug, '-', '')) = $3
+          OR LOWER(common_name) = $4
+          OR LOWER(REPLACE(common_name, ' ', '')) = $3
        LIMIT 1;`,
-      [normalizedSlug, cleanClass.toLowerCase().replace(/_/g, ' ')]
+      [cleanHyphen, cleanClass.toLowerCase(), cleanNoSpecial, cleanSpace]
     );
     const plantId = plantMatch.rows[0]?.id || null;
+
+    // Ensure user actually exists in users table before setting foreign key
+    let finalUserId = null;
+    if (validUserId) {
+      const userCheck = await db.query(`SELECT id FROM users WHERE id = $1 LIMIT 1;`, [validUserId]);
+      if (userCheck.rows.length > 0) {
+        finalUserId = validUserId;
+      }
+    }
 
     const result = await db.query(
       `INSERT INTO plant_scans (user_id, plant_id, detected_class, confidence, predictions_payload, description, image_url)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING id, user_id, plant_id, detected_class, confidence, predictions_payload, description, image_url, created_at;`,
-      [validUserId, plantId, cleanClass, cleanConfidence, cleanPayload, cleanDescription, cleanImageUrl]
+      [finalUserId, plantId, cleanClass, cleanConfidence, cleanPayload, cleanDescription, cleanImageUrl]
     );
 
     const row = result.rows[0];

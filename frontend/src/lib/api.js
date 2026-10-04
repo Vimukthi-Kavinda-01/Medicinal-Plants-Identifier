@@ -105,11 +105,17 @@ export async function recordScan(scanData) {
   }
 
   try {
+    const token = localStorage.getItem('herbsense_jwt');
+    const headers = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const response = await fetch(`${API_BASE_URL}/api/scans`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify({
         userId: scanData.userId || null,
         detectedClass: scanData.detectedClass || null,
@@ -255,11 +261,17 @@ export async function savePlant(userId, plantId, userNotes = null) {
     throw new Error('User ID and Plant ID are required to save a plant.');
   }
 
+  const token = localStorage.getItem('herbsense_jwt');
+  const headers = {
+    'Content-Type': 'application/json',
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   const response = await fetch(`${API_BASE_URL}/api/saved-plants`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers,
     body: JSON.stringify({
       userId,
       plantId,
