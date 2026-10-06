@@ -63,6 +63,7 @@ test('findPlant handles labels, aliases and noisy names', () => {
   assert.equal(findPlant('ALOE-VERA').id, 'aloe-vera');
   assert.equal(findPlant('Holy Basil').id, 'tulsi');
   assert.equal(findPlant('aloe vera leaf').id, 'aloe-vera');
+   assert.equal(findPlant('Aleovera').id, 'aloe-vera');
   assert.equal(findPlant('Gotu kola').id, 'gotu-kola');
   assert.equal(findPlant('dandelion'), null);
   assert.equal(findPlant(''), null);

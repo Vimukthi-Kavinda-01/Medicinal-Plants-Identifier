@@ -15,7 +15,7 @@ const PLANTS = [
   {
     id: 'aloe-vera',
     name: 'Aloe Vera',
-    aliases: ['aloe', 'aloe barbadensis', 'aloe barbadensis miller'],
+       aliases: ['aloe', 'aloe barbadensis', 'aloe barbadensis miller', 'aleovera'],
     scientificName: 'Aloe barbadensis miller',
     family: 'Asphodelaceae',
     medicinalUses:
