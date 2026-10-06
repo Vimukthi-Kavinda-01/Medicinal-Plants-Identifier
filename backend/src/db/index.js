@@ -1,5 +1,11 @@
 'use strict';
 
+const path = require('path');
+// Ensure .env is loaded regardless of the process working directory
+require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
+require('dotenv').config({ path: path.resolve(__dirname, '../../../backend/.env') });
+require('dotenv').config();
+
 const { Pool } = require('pg');
 
 /**

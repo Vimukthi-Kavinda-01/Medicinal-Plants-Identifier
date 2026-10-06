@@ -108,8 +108,14 @@ router.post('/register', async (req, res) => {
       user: formatUser(user),
     });
   } catch (err) {
-    console.error('[Register Error]:', err.message);
-    return res.status(500).json({ error: 'Failed to create account. Please try again.' });
+    console.error('[Register Error]:', err);
+    if (err.code === '23505') {
+      return res.status(409).json({ error: 'Username or email is already registered.' });
+    }
+    if (err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND' || err.code === 'EHOSTUNREACH' || err.code === 'ETIMEDOUT') {
+      return res.status(503).json({ error: 'Database service is currently unreachable. Please check your internet connection.' });
+    }
+    return res.status(500).json({ error: err.message || 'Failed to create account. Please try again.' });
   }
 });
 
@@ -160,8 +166,11 @@ router.post('/login', async (req, res) => {
       user: formatUser(user),
     });
   } catch (err) {
-    console.error('[Login Error]:', err.message);
-    return res.status(500).json({ error: 'Login failed. Please try again.' });
+    console.error('[Login Error]:', err);
+    if (err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND' || err.code === 'EHOSTUNREACH' || err.code === 'ETIMEDOUT') {
+      return res.status(503).json({ error: 'Database service is currently unreachable. Please check your internet connection.' });
+    }
+    return res.status(500).json({ error: err.message || 'Login failed. Please try again.' });
   }
 });
 
