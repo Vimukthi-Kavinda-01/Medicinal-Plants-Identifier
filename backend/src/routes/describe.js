@@ -4,8 +4,10 @@ const express = require('express');
 const router = express.Router();
 
 const DEFAULT_DESCRIPTION_URL = 'https://api.openai.com/v1/chat/completions';
-const REQUEST_TIMEOUT_MS = 65_000;
-const MAX_RETRIES = 4; // Up to 5 total attempts to ride out worker pool capacity spikes
+// Descriptions are optional enrichment; they must not keep the result page
+// spinning while the primary identification result is already available.
+const REQUEST_TIMEOUT_MS = 20_000;
+const MAX_RETRIES = 0;
 const BASE_RETRY_DELAY_MS = 1_000;
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // Cache descriptions for 24 hours
 

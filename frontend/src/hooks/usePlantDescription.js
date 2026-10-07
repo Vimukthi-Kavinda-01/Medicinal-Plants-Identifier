@@ -1,40 +1,46 @@
 import { useCallback, useState } from 'react';
 import { describePlant } from '../lib/api';
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
 export function usePlantDescription() {
   const [status, setStatus] = useState('idle');
   const [description, setDescription] = useState('');
   const [error, setError] = useState(null);
 
-  const run = useCallback(async (plantName) => {
+  const run = useCallback(async (plantName, fallbackInfo = null) => {
     if (!plantName) return null;
 
     setStatus('loading');
     setError(null);
 
-    // Initial attempt + 1 client-side auto-retry on capacity limits
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        const result = await describePlant(plantName);
-        const text = typeof result === 'string' ? result : (result?.description || '');
-        setDescription(text);
-        setStatus('success');
-        setError(null);
-        return text;
-      } catch (err) {
-        const isCapacity = /capacity|busy|overloaded|limit reached|503/i.test(err.message || '');
-        if (isCapacity && attempt === 0) {
-          console.log('[usePlantDescription] Capacity limit encountered, auto-retrying in 2s...');
-          await sleep(2000);
-          continue;
-        }
+    try {
+      const result = await describePlant(plantName);
+      const text = typeof result === 'string' ? result : (result?.description || '');
+      setDescription(text);
+      setStatus('success');
+      setError(null);
+      return text;
+    } catch (err) {
+      if (fallbackInfo?.medicinalUses || fallbackInfo?.habitat) {
+        const fallback = [
+          `${fallbackInfo.name || plantName} (${fallbackInfo.scientificName || 'scientific name unavailable'}) is a ${fallbackInfo.family || 'documented'} plant.`,
+          fallbackInfo.habitat ? `It is commonly found in ${fallbackInfo.habitat.toLowerCase()}.` : '',
+          fallbackInfo.medicinalUses
+            ? `Traditional and researched uses include ${fallbackInfo.medicinalUses.toLowerCase()}`
+            : '',
+          fallbackInfo.precautions ? `Safety note: ${fallbackInfo.precautions}` : '',
+        ]
+          .filter(Boolean)
+          .join(' ');
 
-        setError(err.message || 'Description generation failed.');
-        setStatus('error');
-        return null;
+        setDescription(fallback);
+        setStatus('fallback');
+        setError(null);
+        return fallback;
       }
+
+      setError(err.message || 'Description generation failed.');
+      setStatus('error');
+      return null;
     }
   }, []);
 

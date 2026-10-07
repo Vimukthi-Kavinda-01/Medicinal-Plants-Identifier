@@ -26,8 +26,19 @@ export default function VerificationSummary({ verification, ranked }) {
         <ul className="mt-3 space-y-1 border-t border-black/5 pt-3">
           {checked.map((item) => (
             <li key={item.class} className="flex justify-between gap-3">
-              <span className="font-semibold">{item.name}</span>
-              <span className="text-right opacity-80">
+              <div className="min-w-0">
+                <p className="font-semibold">{item.name}</p>
+                {item.featureMatches?.length > 0 && (
+                  <ul className="mt-1 space-y-0.5 pl-3 text-[11px] opacity-80">
+                    {item.featureMatches.map((feature) => (
+                      <li key={feature.questionId}>
+                        {feature.matched ? '✓' : '×'} {feature.question}: {feature.answer}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <span className="shrink-0 text-right opacity-80">
                 image {Math.round(item.modelConfidence * 100)}% · features {item.matched}/{item.compared} match → {item.percent}%
               </span>
             </li>

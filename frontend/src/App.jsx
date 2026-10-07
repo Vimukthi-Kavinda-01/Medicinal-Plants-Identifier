@@ -113,8 +113,8 @@ function AppInner() {
     async (result) => {
       if (!result?.top) return;
 
-      // plantDescription.run resolves to the text, or null on failure
-      const description = await plantDescription.run(formatPlantName(result.top.class));
+      // Use the curated herbarium record if the optional description provider is unavailable.
+      const description = await plantDescription.run(formatPlantName(result.top.class), result.info);
 
       // Persist scan history asynchronously
       try {
@@ -170,7 +170,7 @@ function AppInner() {
   // Retry only the AI description (no new scan is recorded)
   const handleRetryDescription = useCallback(() => {
     const top = identification.result?.top;
-    if (top) plantDescription.run(formatPlantName(top.class));
+    if (top) plantDescription.run(formatPlantName(top.class), identification.result?.info);
   }, [identification.result, plantDescription]);
 
   return (

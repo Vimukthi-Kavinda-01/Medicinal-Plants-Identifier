@@ -256,7 +256,7 @@ export default function ResultsPanel({
 
             <div>
               <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-herb-600">
-                AI field notes
+                {descriptionStatus === 'fallback' ? 'Botanical field notes' : 'AI field notes'}
               </p>
 
               <h4 className="mt-0.5 text-base font-bold text-herb-900">
@@ -277,7 +277,7 @@ export default function ResultsPanel({
           </div>
         )}
 
-        {descriptionStatus === 'success' && (
+        {(descriptionStatus === 'success' || descriptionStatus === 'fallback') && (
           <p className="text-sm leading-7 text-herb-900/80">
             {typeof description === 'string'
               ? description

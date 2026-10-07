@@ -6,7 +6,7 @@ const UNSURE = 'unsure';
 /** Steps 5–6 – plant-feature questions asked when confidence is low or medium. */
 export default function VerificationQuestions({ questions, level, isSubmitting, error, onSubmit, onSkip }) {
   const [answers, setAnswers] = useState({});
-  const answeredCount = Object.values(answers).filter((value) => value !== UNSURE).length;
+  const selectedCount = Object.keys(answers).length;
 
   const choose = (questionId, value) => setAnswers((current) => ({ ...current, [questionId]: value }));
 
@@ -70,7 +70,7 @@ export default function VerificationQuestions({ questions, level, isSubmitting, 
       <div className="flex flex-col gap-2 sm:flex-row">
         <button
           type="button"
-          disabled={isSubmitting || answeredCount === 0}
+          disabled={isSubmitting || selectedCount === 0}
           onClick={() => onSubmit(answers)}
           className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-herb-700 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-herb-800 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400"
         >

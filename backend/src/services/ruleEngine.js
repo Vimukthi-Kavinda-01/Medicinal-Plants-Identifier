@@ -14,18 +14,32 @@ const QUESTION_BY_ID = new Map(QUESTIONS.map((question) => [question.id, questio
  
 /**
  * Step 5 – choose the questions that best tell the current candidates apart.
- * A question is useful when at least two candidates have different accepted answers.
+ * Prefer questions that distinguish candidates. If the candidates cannot be
+ * separated, still ask applicable questions so moderate/low predictions are
+ * always user-checkable.
  *
  * @param {Array<{class: string}>} candidates top-3 predictions
  * @returns {Array} question objects (id, text, hint, options)
  */
 function selectQuestions(candidates) {
   const entries = candidates.map((candidate) => findPlant(candidate.class)).filter(Boolean);
-  if (entries.length === 0) return [];
- 
-  return QUESTIONS.map((question, order) => ({ question, order, power: separationPower(question.id, entries) }))
+  if (entries.length === 0) return QUESTIONS.slice(0, MAX_QUESTIONS);
+
+  const scoredQuestions = QUESTIONS.map((question, order) => ({
+    question,
+    order,
+    power: separationPower(question.id, entries),
+    applicable: entries.some((entry) => (entry.features[question.id] || []).length > 0),
+  }));
+
+  const distinguishing = scoredQuestions
     .filter((item) => item.power > 0)
-    .sort((a, b) => b.power - a.power || a.order - b.order)
+    .sort((a, b) => b.power - a.power || a.order - b.order);
+  const fallback = scoredQuestions
+    .filter((item) => item.power === 0 && item.applicable)
+    .sort((a, b) => a.order - b.order);
+
+  return [...distinguishing, ...fallback]
     .slice(0, MAX_QUESTIONS)
     .map((item) => item.question);
 }
@@ -72,7 +86,7 @@ function sanitizeAnswers(answers) {
 function verifyCandidates(candidates, rawAnswers) {
   const answers = sanitizeAnswers(rawAnswers);
   const answeredCount = Object.keys(answers).length;
- 
+
   const scored = candidates.map((candidate, originalRank) => {
     const entry = findPlant(candidate.class);
     const comparable = entry
@@ -82,7 +96,19 @@ function verifyCandidates(candidates, rawAnswers) {
     const ruleScore = comparable.length > 0 ? matched / comparable.length : null;
     const fused =
       ruleScore === null ? candidate.confidence : MODEL_WEIGHT * candidate.confidence + RULE_WEIGHT * ruleScore;
- 
+    const featureMatches = comparable.map(([questionId, value]) => {
+      const question = QUESTION_BY_ID.get(questionId);
+      const option = question.options.find((item) => item.value === value);
+      const accepted = entry.features[questionId];
+
+      return {
+        questionId,
+        question: question.text,
+        answer: option ? option.label : value,
+        matched: accepted.includes(value),
+      };
+    });
+
     return {
       class: candidate.class,
       name: candidate.name || formatPlantName(candidate.class),
@@ -90,6 +116,7 @@ function verifyCandidates(candidates, rawAnswers) {
       ruleScore: ruleScore === null ? null : round(ruleScore),
       matched,
       compared: comparable.length,
+      featureMatches,
       confidence: round(fused),
       percent: Math.round(fused * 100),
       originalRank,

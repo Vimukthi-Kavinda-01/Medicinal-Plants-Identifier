@@ -84,7 +84,18 @@ test('selectQuestions asks discriminating questions only', () => {
   assert.ok(questions.length > 0 && questions.length <= 3);
   // Tulsi vs peppermint share arrangement/shape, but aloe differs -> arrangement must be useful.
   assert.ok(questions.some((q) => q.id === 'leafArrangement'));
-  assert.deepEqual(selectQuestions([{ class: 'unknown_thing' }]), []);
+  assert.ok(selectQuestions([{ class: 'unknown_thing' }]).length > 0);
+});
+
+test('selectQuestions falls back to applicable questions when candidates cannot be separated', () => {
+  const questions = selectQuestions([{ class: 'tulsi' }]);
+  assert.equal(questions.length, 3);
+  assert.deepEqual(
+    questions.map((question) => question.id),
+    ['leafArrangement', 'leafShape', 'scent']
+  );
+
+  assert.equal(selectQuestions([{ class: 'unknown_thing' }]).length, 3);
 });
  
 test('sanitizeAnswers drops unknown ids, invalid values and "unsure"', () => {
@@ -113,10 +124,15 @@ test('verifyCandidates confirms when answers agree, and skips when none are give
   const confirmed = verifyCandidates(candidates, { scent: 'pungent', growthHabit: 'tree' });
   assert.equal(confirmed.verification.status, 'confirmed');
   assert.ok(confirmed.ranked[0].confidence > 0.6, 'matching answers should raise confidence');
- 
+  assert.deepEqual(
+    confirmed.ranked[0].featureMatches.map((feature) => feature.answer),
+    ['Bitter or pungent', 'Tree']
+  );
+
   const skipped = verifyCandidates(candidates, { scent: 'unsure' });
   assert.equal(skipped.verification.status, 'skipped');
   assert.equal(skipped.ranked[0].confidence, 0.6);
+  assert.deepEqual(skipped.ranked[0].featureMatches, []);
 });
  
 test('buildFinalResult returns info, similar plants and a severity-matched warning', () => {
