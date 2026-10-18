@@ -253,3 +253,8 @@ test('GET /api/herbarium routes', async () => {
   });
 });
  
+test('new herbarium entries are found by their model labels', () => {
+  assert.equal(findPlant('Lemon').id, 'lemon');
+  assert.equal(findPlant('Betel Leaf').id, 'betel-leaf');
+  assert.equal(findPlant('piper betle').id, 'betel-leaf');
+});
