@@ -14,7 +14,30 @@ export default function ImageUploadZone({ imagePreview, onImageSelected, onClear
 
     const reader = new FileReader();
     reader.onload = (e) => {
-      onImageSelected(e.target.result);
+      const img = new Image();
+      img.onload = () => {
+        const MAX_DIM = 1280;
+        let { width, height } = img;
+        if (width > MAX_DIM || height > MAX_DIM) {
+          if (width > height) {
+            height = Math.round((height * MAX_DIM) / width);
+            width = MAX_DIM;
+          } else {
+            width = Math.round((width * MAX_DIM) / height);
+            height = MAX_DIM;
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          onImageSelected(canvas.toDataURL('image/jpeg', 0.92));
+        } else {
+          onImageSelected(e.target.result);
+        }
+      };
+      img.onerror = () => onImageSelected(e.target.result);
+      img.src = e.target.result;
     };
     reader.readAsDataURL(file);
   };

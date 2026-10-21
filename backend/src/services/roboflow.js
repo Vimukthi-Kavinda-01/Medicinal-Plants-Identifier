@@ -10,6 +10,10 @@ const DEFAULT_WORKFLOW_URL =
 
 const WORKFLOW_URL = process.env.ROBOFLOW_WORKFLOW_URL || DEFAULT_WORKFLOW_URL;
 
+// Direct model endpoint used for adaptive threshold fallback
+const DEFAULT_MODEL_URL = 'https://detect.roboflow.com/medicinal-plants-dataset-v-0-2/1';
+const DIRECT_MODEL_URL = process.env.ROBOFLOW_MODEL_URL || DEFAULT_MODEL_URL;
+
 const REQUEST_TIMEOUT_MS = 35_000;
 const MAX_RETRIES = 2;
 const RETRY_BASE_DELAY_MS = 800;
@@ -46,6 +50,39 @@ function mapFriendlyError(status, rawMessage) {
       return 'Roboflow rate limit reached. Please wait a moment before making more requests.';
     default:
       return rawMessage || `Roboflow API returned error status ${status}.`;
+  }
+}
+
+/**
+ * Direct model inference fallback with custom confidence threshold.
+ * Used when the serverless workflow returns 0 predictions or filters out candidates.
+ */
+async function queryDirectModel(cleanBase64, apiKey, confidencePct = 12) {
+  try {
+    const url = `${DIRECT_MODEL_URL}?api_key=${encodeURIComponent(apiKey.trim())}&confidence=${confidencePct}&overlap=30`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15_000);
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: cleanBase64,
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (err) {
+    console.warn(`[Roboflow Direct Fallback] Error at confidence=${confidencePct}:`, err.message);
+    return null;
   }
 }
 
@@ -145,7 +182,31 @@ async function runRoboflowWorkflow(cleanBase64, apiKey) {
   }
 
   // Defensively extract and sanitize predictions
-  const predictions = extractPredictions(rawResult);
+  let predictions = extractPredictions(rawResult);
+
+  // If the serverless workflow returned no predictions, attempt direct model inference with lower thresholds
+  if (predictions.length === 0) {
+    console.log('[Roboflow] Workflow returned 0 predictions. Attempting direct model fallback (conf=12)...');
+    let directData = await queryDirectModel(cleanBase64, apiKey, 12);
+    let directPreds = directData ? extractPredictions(directData) : [];
+
+    // If still 0, try a more sensitive pass (conf=6) to capture subtle leaf detections
+    if (directPreds.length === 0) {
+      console.log('[Roboflow] Direct conf=12 returned 0. Trying sensitive fallback (conf=6)...');
+      directData = await queryDirectModel(cleanBase64, apiKey, 6);
+      directPreds = directData ? extractPredictions(directData) : [];
+    }
+
+    if (directPreds.length > 0) {
+      console.log(
+        `[Roboflow] Direct fallback recovered ${directPreds.length} candidate(s). Top: ${directPreds[0].class} (${Math.round(directPreds[0].confidence * 100)}%)`
+      );
+      return {
+        raw: directData || rawResult,
+        predictions: directPreds,
+      };
+    }
+  }
 
   return {
     raw: rawResult,
@@ -254,9 +315,11 @@ function extractPredictions(data) {
 
 module.exports = {
   runRoboflowWorkflow,
+  queryDirectModel,
   extractPredictions,
   RoboflowError,
   WORKFLOW_URL,
   DEFAULT_WORKFLOW_URL,
+  DIRECT_MODEL_URL,
 };
 
