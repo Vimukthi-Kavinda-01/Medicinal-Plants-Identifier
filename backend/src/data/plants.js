@@ -294,6 +294,56 @@ const PLANTS = [
       },
     ],
   },
+    {
+    id: 'lemon',
+    name: 'Lemon',
+    aliases: ['citrus limon', 'citrus x limon', 'lemon leaf', 'lemon leaves', 'lemon tree'],
+    scientificName: 'Citrus × limon',
+    family: 'Rutaceae',
+    medicinalUses:
+      'Juice is a traditional source of vitamin C and was used as a remedy for scurvy; fruit extracts and peel oil are studied for antioxidant and antimicrobial effects.',
+    activeCompounds: 'D-limonene, Beta-pinene, Gamma-terpinene, Hesperidin, Diosmin, Ascorbic acid',
+    habitat: 'Sunny tropical and subtropical regions; widely grown in home gardens in Sri Lanka.',
+    precautions:
+      'Safe in normal food amounts. Lemon peel oil contains furocoumarins that can make skin sensitive to sunlight and cause burns, and it can irritate skin and eyes; avoid putting undiluted peel oil on the skin before sun exposure.',
+    features: {
+      leafArrangement: ['alternate'],
+      leafShape: ['oval'],
+      scent: ['citrus'],
+      growthHabit: ['tree', 'shrub'],
+    },
+    lookalikes: [
+      {
+        id: 'lemongrass',
+        tip: 'Both smell of lemon when crushed, but lemongrass has long, thin, grass-like blades in a clump, while lemon is a small tree with oval leaves.',
+      },
+    ],
+  },
+  {
+    id: 'betel-leaf',
+    name: 'Betel Leaf',
+    aliases: ['piper betle', 'betel', 'betel leaves', 'bulath', 'paan'],
+    scientificName: 'Piper betle',
+    family: 'Piperaceae',
+    medicinalUses:
+      'Leaf is traditionally chewed as a mild stimulant, and its juice is used in Ayurveda as an ingredient in herbal preparations and in Sri Lanka for skin ailments; extracts are studied for antibacterial, antifungal and antioxidant effects.',
+    activeCompounds: 'Hydroxychavicol, Eugenol, Chavibetol, Chavicol, Allylpyrocatechol',
+    habitat: 'Climbing shrub of the wet tropics; native from Indo-China to Malesia and widely grown in Asia, including Sri Lanka.',
+    precautions:
+      'Betel quid (betel leaf chewed with areca nut and lime, with or without tobacco) is classified by IARC/WHO as carcinogenic to humans and causes oral cancer. The leaf alone has not been shown to be risk-free, so avoid regular chewing.',
+    features: {
+      leafArrangement: ['alternate'],
+      leafShape: ['round', 'oval'],
+      scent: ['spicy', 'pungent'],
+      growthHabit: ['creeping'],
+    },
+    lookalikes: [
+      {
+        id: 'gotu-kola',
+        tip: 'Betel leaf is large, glossy and heart-shaped with a strong spicy smell on a climbing vine; gotu kola leaves are small, round with scalloped edges, and have little smell.',
+      },
+    ],
+  },
 ];
 
 module.exports = { PLANTS };
